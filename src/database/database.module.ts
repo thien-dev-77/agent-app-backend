@@ -19,28 +19,36 @@ import { KnowledgeImage } from '../entities/knowledge-image.entity';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        url: configService.get<string>('DATABASE_URL'),
-        entities: [
-          Brand,
-          Template,
-          ImageGeneration,
-          VideoGeneration,
-          TrainingCategory,
-          TrainingPhrase,
-          TrainingScenario,
-          TrainingFAQ,
-          Chatbot,
-          Customer,
-          Appointment,
-          KnowledgeImage,
-        ],
-        synchronize: true,
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        
+        return {
+          type: 'postgres',
+          url: databaseUrl,
+          entities: [
+            Brand,
+            Template,
+            ImageGeneration,
+            VideoGeneration,
+            TrainingCategory,
+            TrainingPhrase,
+            TrainingScenario,
+            TrainingFAQ,
+            Chatbot,
+            Customer,
+            Appointment,
+            KnowledgeImage,
+          ],
+          synchronize: true,
+          ssl: {
+            rejectUnauthorized: false,
+          },
+          extra: {
+            // Force IPv4 connection
+            family: 4,
+          },
+        };
+      },
     }),
   ],
 })
