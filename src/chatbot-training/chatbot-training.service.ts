@@ -1,0 +1,709 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { TrainingCategory } from '../entities/training-category.entity';
+import { TrainingPhrase } from '../entities/training-phrase.entity';
+import { TrainingScenario } from '../entities/training-scenario.entity';
+import { TrainingFAQ } from '../entities/training-faq.entity';
+import { Chatbot } from '../entities/chatbot.entity';
+import { KnowledgeImage } from '../entities/knowledge-image.entity';
+import { OpenAIService } from '../openai/openai.service';
+import {
+  CreateCategoryDto,
+  UpdateCategoryDto,
+  CreatePhraseDto,
+  UpdatePhraseDto,
+  CreateScenarioDto,
+  UpdateScenarioDto,
+  CreateFAQDto,
+  UpdateFAQDto,
+} from './dto';
+
+@Injectable()
+export class ChatbotTrainingService {
+  constructor(
+    @InjectRepository(TrainingCategory)
+    private readonly categoryRepo: Repository<TrainingCategory>,
+    @InjectRepository(TrainingPhrase)
+    private readonly phraseRepo: Repository<TrainingPhrase>,
+    @InjectRepository(TrainingScenario)
+    private readonly scenarioRepo: Repository<TrainingScenario>,
+    @InjectRepository(TrainingFAQ)
+    private readonly faqRepo: Repository<TrainingFAQ>,
+    @InjectRepository(Chatbot)
+    private readonly chatbotRepo: Repository<Chatbot>,
+    @InjectRepository(KnowledgeImage)
+    private readonly imageRepo: Repository<KnowledgeImage>,
+    private readonly openaiService: OpenAIService,
+  ) {}
+
+  // ==================== KNOWLEDGE IMAGES ====================
+
+  async findAllImages(categoryId?: string): Promise<KnowledgeImage[]> {
+    const where = categoryId ? { category_id: categoryId } : {};
+    return this.imageRepo.find({ where, order: { created_at: 'DESC' }, relations: ['category'] });
+  }
+
+  async createImage(dto: { title: string; image_url: string; description?: string; tags?: string[]; category_id?: string }): Promise<KnowledgeImage> {
+    return this.imageRepo.save(this.imageRepo.create(dto));
+  }
+
+  async removeImage(id: string): Promise<void> {
+    const img = await this.imageRepo.findOne({ where: { id } });
+    if (!img) throw new NotFoundException(`Image "${id}" not found`);
+    await this.imageRepo.remove(img);
+  }
+
+  // ==================== CHATBOTS ====================
+
+  async findAllChatbots(): Promise<Chatbot[]> {
+    return this.chatbotRepo.find({ order: { created_at: 'DESC' } });
+  }
+
+  async findOneChatbot(id: string): Promise<Chatbot> {
+    const bot = await this.chatbotRepo.findOne({ where: { id } });
+    if (!bot) throw new NotFoundException(`Chatbot "${id}" not found`);
+    return bot;
+  }
+
+  async createChatbot(dto: { name: string; description?: string; prompt?: string; model?: string; settings?: object }): Promise<Chatbot> {
+    return this.chatbotRepo.save(this.chatbotRepo.create(dto));
+  }
+
+  async updateChatbot(id: string, dto: Partial<Chatbot>): Promise<Chatbot> {
+    const bot = await this.findOneChatbot(id);
+    Object.assign(bot, dto);
+    return this.chatbotRepo.save(bot);
+  }
+
+  async removeChatbot(id: string): Promise<void> {
+    const bot = await this.findOneChatbot(id);
+    await this.chatbotRepo.remove(bot);
+  }
+
+  // ==================== CATEGORIES ====================
+
+  async findAllCategories(): Promise<TrainingCategory[]> {
+    return this.categoryRepo.find({
+      order: { sort_order: 'ASC', created_at: 'DESC' },
+    });
+  }
+
+  async findOneCategory(id: string): Promise<TrainingCategory> {
+    const category = await this.categoryRepo.findOne({
+      where: { id },
+      relations: ['phrases', 'scenarios', 'faqs'],
+    });
+    if (!category) {
+      throw new NotFoundException(`Category with ID "${id}" not found`);
+    }
+    return category;
+  }
+
+  async createCategory(dto: CreateCategoryDto): Promise<TrainingCategory> {
+    const category = this.categoryRepo.create(dto);
+    return this.categoryRepo.save(category);
+  }
+
+  async updateCategory(id: string, dto: UpdateCategoryDto): Promise<TrainingCategory> {
+    const category = await this.findOneCategory(id);
+    Object.assign(category, dto);
+    return this.categoryRepo.save(category);
+  }
+
+  async removeCategory(id: string): Promise<void> {
+    const category = await this.findOneCategory(id);
+    await this.categoryRepo.remove(category);
+  }
+
+  // ==================== PHRASES ====================
+
+  async findAllPhrases(categoryId?: string): Promise<TrainingPhrase[]> {
+    const where = categoryId ? { category_id: categoryId } : {};
+    return this.phraseRepo.find({
+      where,
+      relations: ['category'],
+      order: { priority: 'DESC', created_at: 'DESC' },
+    });
+  }
+
+  async findOnePhrase(id: string): Promise<TrainingPhrase> {
+    const phrase = await this.phraseRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+    if (!phrase) {
+      throw new NotFoundException(`Phrase with ID "${id}" not found`);
+    }
+    return phrase;
+  }
+
+  async createPhrase(dto: CreatePhraseDto): Promise<TrainingPhrase> {
+    const phrase = this.phraseRepo.create(dto);
+    return this.phraseRepo.save(phrase);
+  }
+
+  async updatePhrase(id: string, dto: UpdatePhraseDto): Promise<TrainingPhrase> {
+    const phrase = await this.findOnePhrase(id);
+    Object.assign(phrase, dto);
+    return this.phraseRepo.save(phrase);
+  }
+
+  async removePhrase(id: string): Promise<void> {
+    const phrase = await this.findOnePhrase(id);
+    await this.phraseRepo.remove(phrase);
+  }
+
+  // ==================== SCENARIOS ====================
+
+  async findAllScenarios(categoryId?: string): Promise<TrainingScenario[]> {
+    const where = categoryId ? { category_id: categoryId } : {};
+    return this.scenarioRepo.find({
+      where,
+      relations: ['category'],
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  async findOneScenario(id: string): Promise<TrainingScenario> {
+    const scenario = await this.scenarioRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+    if (!scenario) {
+      throw new NotFoundException(`Scenario with ID "${id}" not found`);
+    }
+    return scenario;
+  }
+
+  async createScenario(dto: CreateScenarioDto): Promise<TrainingScenario> {
+    const scenario = this.scenarioRepo.create(dto);
+    return this.scenarioRepo.save(scenario);
+  }
+
+  async updateScenario(id: string, dto: UpdateScenarioDto): Promise<TrainingScenario> {
+    const scenario = await this.findOneScenario(id);
+    Object.assign(scenario, dto);
+    return this.scenarioRepo.save(scenario);
+  }
+
+  async removeScenario(id: string): Promise<void> {
+    const scenario = await this.findOneScenario(id);
+    await this.scenarioRepo.remove(scenario);
+  }
+
+  // ==================== FAQs ====================
+
+  async findAllFAQs(categoryId?: string): Promise<TrainingFAQ[]> {
+    const where = categoryId ? { category_id: categoryId } : {};
+    return this.faqRepo.find({
+      where,
+      relations: ['category'],
+      order: { sort_order: 'ASC', created_at: 'DESC' },
+    });
+  }
+
+  async findOneFAQ(id: string): Promise<TrainingFAQ> {
+    const faq = await this.faqRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+    if (!faq) {
+      throw new NotFoundException(`FAQ with ID "${id}" not found`);
+    }
+    return faq;
+  }
+
+  async createFAQ(dto: CreateFAQDto): Promise<TrainingFAQ> {
+    const faq = this.faqRepo.create(dto);
+    return this.faqRepo.save(faq);
+  }
+
+  async updateFAQ(id: string, dto: UpdateFAQDto): Promise<TrainingFAQ> {
+    const faq = await this.findOneFAQ(id);
+    Object.assign(faq, dto);
+    return this.faqRepo.save(faq);
+  }
+
+  async removeFAQ(id: string): Promise<void> {
+    const faq = await this.findOneFAQ(id);
+    await this.faqRepo.remove(faq);
+  }
+
+  // ==================== STATS ====================
+
+  async getStats() {
+    const [categories, phrases, scenarios, faqs] = await Promise.all([
+      this.categoryRepo.count(),
+      this.phraseRepo.count(),
+      this.scenarioRepo.count(),
+      this.faqRepo.count(),
+    ]);
+    return { categories, phrases, scenarios, faqs };
+  }
+
+  // ==================== CHATBOT AI (ChatGPT) ====================
+
+  async chat(
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[] = [],
+  ): Promise<{ reply: string }> {
+    // Lấy toàn bộ dữ liệu training để build system prompt
+    const [phrases, scenarios, faqs, categories, images] = await Promise.all([
+      this.phraseRepo.find({ where: { status: 'active' }, relations: ['category'] }),
+      this.scenarioRepo.find({ where: { status: 'active' }, relations: ['category'] }),
+      this.faqRepo.find({ where: { status: 'active' }, relations: ['category'] }),
+      this.categoryRepo.find({ where: { status: 'active' } }),
+      this.imageRepo.find(),
+    ]);
+
+    // Build system prompt từ dữ liệu đào tạo
+    const systemPrompt = this.buildSystemPrompt(phrases, scenarios, faqs, categories, images);
+
+    // Gọi ChatGPT
+    const messages = [
+      ...history,
+      { role: 'user' as const, content: message },
+    ];
+
+    const reply = await this.openaiService.chatCompletion(systemPrompt, messages);
+    return { reply };
+  }
+
+  async suggestQuestions(
+    history: { role: 'user' | 'assistant'; content: string }[] = [],
+  ): Promise<{ suggestions: string[] }> {
+    if (history.length === 0) return { suggestions: [] };
+
+    const suggestPrompt = `Considering the AI's character settings, the user's previous chat history with the AI assistant, think about the user's scenario, intention, background in their last inquiry, and generate the questions that the user is most likely to ask the AI assistant (you) next.
+
+Rules:
+1. Do not generate questions that the user may already know the answer, or unrelated to the current topics.
+2. Always generate very brief and clear questions (less than 15 words) that the user may ask the AI assistant (you), NOT questions that the AI assistant (you) asks the user.
+3. DO NOT generate the same or similar questions.
+4. Generate exactly 3 questions.
+5. Return ONLY a JSON array of 3 strings, no explanation.
+
+Example output: ["Niềng răng có đau không?", "Thời gian niềng bao lâu?", "Có trả góp được không?"]`;
+
+    const messages: { role: 'user' | 'assistant'; content: string }[] = [
+      ...history,
+      { role: 'user', content: 'Generate 3 follow-up questions based on our conversation.' },
+    ];
+
+    try {
+      const result = await this.openaiService.chatCompletion(suggestPrompt, messages);
+      // Parse JSON array from response
+      const match = result.match(/\[[\s\S]*?\]/);
+      if (match) {
+        const suggestions = JSON.parse(match[0]) as string[];
+        return { suggestions: suggestions.slice(0, 3) };
+      }
+      return { suggestions: [] };
+    } catch {
+      return { suggestions: [] };
+    }
+  }
+
+  private buildSystemPrompt(
+    phrases: TrainingPhrase[],
+    scenarios: TrainingScenario[],
+    faqs: TrainingFAQ[],
+    categories: TrainingCategory[],
+    images: KnowledgeImage[] = [],
+  ): string {
+    let prompt = `Bạn là chatbot tư vấn nha khoa chuyên nghiệp. Hãy trả lời khách hàng dựa trên kiến thức được đào tạo bên dưới.
+
+## QUY TẮC:
+- Trả lời bằng tiếng Việt, thân thiện, chuyên nghiệp
+- Dựa trên kiến thức đã được đào tạo để trả lời
+- Nếu không biết câu trả lời, hãy nói "Em chưa có thông tin về vấn đề này, để em chuyển cho bác sĩ tư vấn trực tiếp ạ"
+- Luôn giữ giọng điệu tư vấn viên nha khoa
+- Khi khách hỏi xem hình ảnh/kết quả/ví dụ, hãy gửi link ảnh phù hợp từ danh sách HÌNH ẢNH THAM KHẢO bên dưới
+
+`;
+
+    // Thêm danh mục
+    if (categories.length > 0) {
+      prompt += `## DANH MỤC KIẾN THỨC:\n`;
+      categories.forEach((cat) => {
+        prompt += `- ${cat.name}: ${cat.description || ''}\n`;
+      });
+      prompt += '\n';
+    }
+
+    // Thêm mẫu câu (intent + response)
+    if (phrases.length > 0) {
+      prompt += `## MẪU CÂU HỎI - TRẢ LỜI:\n`;
+      phrases.forEach((p) => {
+        prompt += `### Intent: ${p.intent} (${p.category?.name || ''})\n`;
+        prompt += `Khách hỏi: "${p.user_message}"\n`;
+        prompt += `Trả lời: "${p.bot_response}"\n\n`;
+      });
+    }
+
+    // Thêm tình huống
+    if (scenarios.length > 0) {
+      prompt += `## TÌNH HUỐNG XỬ LÝ:\n`;
+      scenarios.forEach((s) => {
+        prompt += `### ${s.title} (Mức độ: ${s.severity})\n`;
+        prompt += `Khi: ${s.trigger_condition}\n`;
+        if (s.resolution_guide) {
+          prompt += `Cách xử lý: ${s.resolution_guide}\n`;
+        }
+        if (Array.isArray(s.conversation_flow) && s.conversation_flow.length > 0) {
+          prompt += `Kịch bản mẫu:\n`;
+          (s.conversation_flow as any[]).forEach((step) => {
+            prompt += `  ${step.role === 'user' ? 'Khách' : 'Bot'}: ${step.message}\n`;
+          });
+        }
+        prompt += '\n';
+      });
+    }
+
+    // Thêm FAQ
+    if (faqs.length > 0) {
+      prompt += `## CÂU HỎI THƯỜNG GẶP:\n`;
+      faqs.forEach((f) => {
+        prompt += `Q: ${f.question}\n`;
+        prompt += `A: ${f.answer}\n`;
+        if (f.related_questions && f.related_questions.length > 0) {
+          prompt += `(Câu hỏi tương tự: ${f.related_questions.join(', ')})\n`;
+        }
+        prompt += '\n';
+      });
+    }
+
+    // Thêm hình ảnh tham khảo
+    if (images.length > 0) {
+      prompt += `## HÌNH ẢNH THAM KHẢO:\nKhi khách hỏi xem hình, kết quả, ví dụ minh họa, hãy gửi link ảnh phù hợp.\n`;
+      images.forEach((img) => {
+        prompt += `- "${img.title}"${img.description ? ` (${img.description})` : ''}${img.tags && img.tags.length > 0 ? ` [tags: ${img.tags.join(', ')}]` : ''}: ${img.image_url}\n`;
+      });
+      prompt += '\nKhi gửi ảnh cho khách, hãy gửi trực tiếp URL ảnh (không markdown). VD:\nĐây là hình ảnh kết quả niềng răng trước và sau:\nhttps://example.com/image.png\n';
+    }
+
+    return prompt;
+  }
+
+  // ==================== KNOWLEDGE UPLOAD ====================
+
+  async processKnowledgeFile(
+    file: Express.Multer.File,
+    categoryId?: string,
+  ): Promise<{ message: string; phrases_created: number }> {
+    // Parse file content
+    let content = '';
+    if (file.mimetype === 'text/plain' || file.mimetype === 'text/markdown') {
+      content = file.buffer.toString('utf-8');
+    } else {
+      // For .doc/.docx - extract raw text (simple approach)
+      content = file.buffer.toString('utf-8').replace(/[^\x20-\x7E\u00C0-\u024F\u1E00-\u1EFF\n\r\t]/g, ' ');
+    }
+
+    return this.addKnowledgeText(content, file.originalname, categoryId);
+  }
+
+  async addKnowledgeText(
+    content: string,
+    title?: string,
+    categoryId?: string,
+  ): Promise<{ message: string; phrases_created: number }> {
+    // Nếu không có category, tạo mới
+    let catId = categoryId;
+    if (!catId) {
+      const cat = await this.categoryRepo.save(
+        this.categoryRepo.create({
+          name: title || 'Kiến thức upload',
+          description: `Upload lúc ${new Date().toLocaleString('vi-VN')}`,
+        }),
+      );
+      catId = cat.id;
+    }
+
+    let phrasesCreated = 0;
+
+    // Detect format: kịch bản dạng "B1:", "B2:", "BƯỚC 1:", etc.
+    const stepPattern = /^(B\d+|BƯỚC\s*\d+|B\d+\s*:)/i;
+    // Detect format: Q&A dạng "Q:" / "A:"
+    const qaPattern = /^Q:/i;
+    const lines = content.split('\n');
+    const hasStepFormat = lines.some((l) => stepPattern.test(l.trim()));
+    const hasQAFormat = lines.some((l) => qaPattern.test(l.trim()));
+
+    if (hasQAFormat) {
+      // Parse Q&A format
+      let currentQ = '';
+      let currentA = '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        if (/^Q:/i.test(trimmed)) {
+          // Save previous pair
+          if (currentQ && currentA) {
+            await this.faqRepo.save(
+              this.faqRepo.create({
+                category_id: catId,
+                question: currentQ,
+                answer: currentA,
+              }),
+            );
+            phrasesCreated++;
+          }
+          currentQ = trimmed.replace(/^Q:\s*/i, '').trim();
+          currentA = '';
+        } else if (/^A:/i.test(trimmed)) {
+          currentA = trimmed.replace(/^A:\s*/i, '').trim();
+        } else if (currentA) {
+          currentA += '\n' + trimmed;
+        }
+      }
+      // Save last pair
+      if (currentQ && currentA) {
+        await this.faqRepo.save(
+          this.faqRepo.create({ category_id: catId, question: currentQ, answer: currentA }),
+        );
+        phrasesCreated++;
+      }
+    } else if (hasStepFormat) {
+      // Parse theo format kịch bản bước
+      const scenarios: { step: string; title: string; content: string }[] = [];
+      let currentStep = '';
+      let currentTitle = '';
+      let currentContent = '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (stepPattern.test(trimmed)) {
+          // Save previous step
+          if (currentStep && currentContent.trim()) {
+            scenarios.push({ step: currentStep, title: currentTitle, content: currentContent.trim() });
+          }
+          // Parse step header: "B2: HỎI TÌNH TRẠNG" or "B2: HỎI TÌNH TRẠNG  <content>"
+          const match = trimmed.match(/^(B\d+|BƯỚC\s*\d+)[:\s]*(.*)$/i);
+          currentStep = match?.[1] || trimmed;
+          const rest = match?.[2]?.trim() || '';
+          // Title might be the first part before tab or double space
+          const parts = rest.split(/\t+|\s{2,}/);
+          currentTitle = parts[0] || '';
+          currentContent = parts.slice(1).join('\n') + '\n';
+        } else {
+          currentContent += trimmed + '\n';
+        }
+      }
+      // Save last step
+      if (currentStep && currentContent.trim()) {
+        scenarios.push({ step: currentStep, title: currentTitle, content: currentContent.trim() });
+      }
+
+      // Create scenario entries
+      for (const s of scenarios) {
+        const stepName = `${s.step}${s.title ? ': ' + s.title : ''}`;
+        const messages = s.content.split('\n').filter((l) => l.trim());
+
+        // Tạo như scenario (conversation flow)
+        if (messages.length > 1) {
+          const flow = messages.map((msg) => ({
+            role: 'bot' as const,
+            message: msg.trim(),
+          }));
+
+          await this.scenarioRepo.save(
+            this.scenarioRepo.create({
+              category_id: catId,
+              title: stepName,
+              description: `Kịch bản ${s.step}`,
+              trigger_condition: s.title || stepName,
+              conversation_flow: flow,
+              severity: 'normal',
+              tags: [s.step.toLowerCase(), 'kịch bản'],
+            }),
+          );
+        } else {
+          // Single response → save as phrase
+          await this.phraseRepo.save(
+            this.phraseRepo.create({
+              category_id: catId,
+              intent: s.step.toLowerCase().replace(/\s+/g, '_'),
+              user_message: s.title || stepName,
+              bot_response: messages[0] || s.content,
+              keywords: [s.step.toLowerCase()],
+            }),
+          );
+        }
+        phrasesCreated++;
+      }
+    } else {
+      // Parse generic: theo paragraphs/chunks
+      const chunks: string[] = [];
+      let currentChunk = '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          if (currentChunk.trim()) { chunks.push(currentChunk.trim()); currentChunk = ''; }
+          continue;
+        }
+        currentChunk += trimmed + '\n';
+        if (currentChunk.length > 300) {
+          chunks.push(currentChunk.trim());
+          currentChunk = '';
+        }
+      }
+      if (currentChunk.trim()) chunks.push(currentChunk.trim());
+
+      // Tạo entries từ chunks
+      for (const chunk of chunks.slice(0, 50)) {
+        if (chunk.length < 10) continue;
+
+        const firstLine = chunk.split('\n')[0].trim();
+        const rest = chunk.split('\n').slice(1).join('\n').trim();
+
+        if (rest) {
+          await this.faqRepo.save(
+            this.faqRepo.create({
+              category_id: catId,
+              question: firstLine.replace(/^[#\-*>]+\s*/, ''),
+              answer: rest,
+            }),
+          );
+        } else {
+          await this.phraseRepo.save(
+            this.phraseRepo.create({
+              category_id: catId,
+              intent: 'knowledge',
+              user_message: firstLine.length > 50 ? firstLine.slice(0, 50) + '...' : firstLine,
+              bot_response: chunk,
+            }),
+          );
+        }
+        phrasesCreated++;
+      }
+    }
+
+    return {
+      message: `Đã xử lý "${title || 'text'}" thành công`,
+      phrases_created: phrasesCreated,
+    };
+  }
+
+  // ==================== SEED DATA ====================
+
+  async seedData(): Promise<{ message: string; created: { categories: number; phrases: number; scenarios: number; faqs: number } }> {
+    const {
+      SEED_CATEGORIES,
+      SEED_PHRASES,
+      SEED_PHRASES_GIA,
+      SEED_PHRASES_KIENTHUC,
+      SEED_PHRASES_TINHUONG,
+      SEED_PHRASES_CSKH,
+      SEED_PHRASES_NHAKHOA,
+      SEED_SCENARIOS,
+      SEED_FAQS,
+    } = await import('./seed');
+
+    // 1. Tạo categories
+    const categoryMap: Record<string, string> = {};
+    for (const cat of SEED_CATEGORIES) {
+      const existing = await this.categoryRepo.findOne({ where: { name: cat.name } });
+      if (existing) {
+        categoryMap[cat.name] = existing.id;
+      } else {
+        const created = await this.categoryRepo.save(this.categoryRepo.create(cat));
+        categoryMap[cat.name] = created.id;
+      }
+    }
+
+    // 2. Tạo phrases
+    const allPhrases = [
+      ...SEED_PHRASES,
+      ...SEED_PHRASES_GIA,
+      ...SEED_PHRASES_KIENTHUC,
+      ...SEED_PHRASES_TINHUONG,
+      ...SEED_PHRASES_CSKH,
+      ...SEED_PHRASES_NHAKHOA,
+    ];
+
+    let phrasesCreated = 0;
+    for (const p of allPhrases) {
+      const categoryId = categoryMap[p.category];
+      if (!categoryId) continue;
+      const exists = await this.phraseRepo.findOne({
+        where: { category_id: categoryId, intent: p.intent },
+      });
+      if (!exists) {
+        await this.phraseRepo.save(
+          this.phraseRepo.create({
+            category_id: categoryId,
+            intent: p.intent,
+            user_message: p.user_message,
+            bot_response: p.bot_response,
+            keywords: p.keywords,
+          }),
+        );
+        phrasesCreated++;
+      }
+    }
+
+    // 3. Tạo scenarios
+    let scenariosCreated = 0;
+    for (const s of SEED_SCENARIOS) {
+      const categoryId = categoryMap[s.category];
+      if (!categoryId) continue;
+      const exists = await this.scenarioRepo.findOne({
+        where: { category_id: categoryId, title: s.title },
+      });
+      if (!exists) {
+        await this.scenarioRepo.save(
+          this.scenarioRepo.create({
+            category_id: categoryId,
+            title: s.title,
+            description: s.description,
+            trigger_condition: s.trigger_condition,
+            conversation_flow: s.conversation_flow,
+            severity: s.severity,
+            resolution_guide: s.resolution_guide,
+            tags: s.tags,
+          }),
+        );
+        scenariosCreated++;
+      }
+    }
+
+    // 4. Tạo FAQs
+    let faqsCreated = 0;
+    for (const f of SEED_FAQS) {
+      const categoryId = categoryMap[f.category];
+      if (!categoryId) continue;
+      const exists = await this.faqRepo.findOne({
+        where: { category_id: categoryId, question: f.question },
+      });
+      if (!exists) {
+        await this.faqRepo.save(
+          this.faqRepo.create({
+            category_id: categoryId,
+            question: f.question,
+            answer: f.answer,
+            related_questions: f.related_questions,
+            keywords: f.keywords,
+          }),
+        );
+        faqsCreated++;
+      }
+    }
+
+    return {
+      message: 'Import dữ liệu mẫu câu thành công!',
+      created: {
+        categories: Object.keys(categoryMap).length,
+        phrases: phrasesCreated,
+        scenarios: scenariosCreated,
+        faqs: faqsCreated,
+      },
+    };
+  }
+}

@@ -1,0 +1,12 @@
+export { Brand } from './brand.entity';
+export { Template } from './template.entity';
+export { ImageGeneration, ImageGenerationStatus } from './image-generation.entity';
+export { VideoGeneration, VideoGenerationStatus } from './video-generation.entity';
+export { TrainingCategory } from './training-category.entity';
+export { TrainingPhrase } from './training-phrase.entity';
+export { TrainingScenario } from './training-scenario.entity';
+export { TrainingFAQ } from './training-faq.entity';
+export { Chatbot } from './chatbot.entity';
+export { Customer } from './customer.entity';
+export { Appointment } from './appointment.entity';
+export { KnowledgeImage } from './knowledge-image.entity';

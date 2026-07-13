@@ -1,0 +1,257 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  ParseUUIDPipe,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ChatbotTrainingService } from './chatbot-training.service';
+import {
+  CreateCategoryDto,
+  UpdateCategoryDto,
+  CreatePhraseDto,
+  UpdatePhraseDto,
+  CreateScenarioDto,
+  UpdateScenarioDto,
+  CreateFAQDto,
+  UpdateFAQDto,
+  ChatRequestDto,
+} from './dto';
+
+@Controller('chatbot-training')
+export class ChatbotTrainingController {
+  constructor(private readonly service: ChatbotTrainingService) {}
+
+  // ==================== KNOWLEDGE IMAGES ====================
+
+  @Get('images')
+  findAllImages(@Query('category_id') categoryId?: string) {
+    return this.service.findAllImages(categoryId);
+  }
+
+  @Post('images')
+  createImage(@Body() dto: { title: string; image_url: string; description?: string; tags?: string[]; category_id?: string }) {
+    return this.service.createImage(dto);
+  }
+
+  @Delete('images/:id')
+  removeImage(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.removeImage(id);
+  }
+
+  // ==================== CHATBOTS ====================
+
+  @Get('chatbots')
+  findAllChatbots() {
+    return this.service.findAllChatbots();
+  }
+
+  @Get('chatbots/:id')
+  findOneChatbot(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOneChatbot(id);
+  }
+
+  @Post('chatbots')
+  createChatbot(@Body() dto: { name: string; description?: string; prompt?: string; model?: string; settings?: object }) {
+    return this.service.createChatbot(dto);
+  }
+
+  @Put('chatbots/:id')
+  updateChatbot(@Param('id', ParseUUIDPipe) id: string, @Body() dto: any) {
+    return this.service.updateChatbot(id, dto);
+  }
+
+  @Delete('chatbots/:id')
+  removeChatbot(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.removeChatbot(id);
+  }
+
+  // ==================== UPLOAD KNOWLEDGE ====================
+
+  @Post('knowledge/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      fileFilter: (_req, file, callback) => {
+        const allowed = [
+          'text/plain',
+          'text/markdown',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+        if (allowed.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(new BadRequestException(`File type không hỗ trợ: ${file.mimetype}. Chỉ hỗ trợ .txt, .md, .doc, .docx`), false);
+        }
+      },
+    }),
+  )
+  async uploadKnowledge(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('category_id') categoryId?: string,
+  ) {
+    return this.service.processKnowledgeFile(file, categoryId);
+  }
+
+  @Post('knowledge/text')
+  async addKnowledgeText(
+    @Body() body: { content: string; title?: string; category_id?: string },
+  ) {
+    return this.service.addKnowledgeText(body.content, body.title, body.category_id);
+  }
+
+  // ==================== CHAT AI ====================
+
+  @Post('chat')
+  chat(@Body() dto: ChatRequestDto) {
+    return this.service.chat(dto.message, dto.history || []);
+  }
+
+  @Post('chat/suggest')
+  suggest(@Body() body: { history: { role: 'user' | 'assistant'; content: string }[] }) {
+    return this.service.suggestQuestions(body.history || []);
+  }
+
+  // ==================== SEED DATA ====================
+
+  @Post('seed')
+  seed() {
+    return this.service.seedData();
+  }
+
+  // ==================== STATS ====================
+
+  @Get('stats')
+  getStats() {
+    return this.service.getStats();
+  }
+
+  // ==================== CATEGORIES ====================
+
+  @Get('categories')
+  findAllCategories() {
+    return this.service.findAllCategories();
+  }
+
+  @Get('categories/:id')
+  findOneCategory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOneCategory(id);
+  }
+
+  @Post('categories')
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.service.createCategory(dto);
+  }
+
+  @Put('categories/:id')
+  updateCategory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.service.updateCategory(id, dto);
+  }
+
+  @Delete('categories/:id')
+  removeCategory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.removeCategory(id);
+  }
+
+  // ==================== PHRASES ====================
+
+  @Get('phrases')
+  findAllPhrases(@Query('category_id') categoryId?: string) {
+    return this.service.findAllPhrases(categoryId);
+  }
+
+  @Get('phrases/:id')
+  findOnePhrase(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOnePhrase(id);
+  }
+
+  @Post('phrases')
+  createPhrase(@Body() dto: CreatePhraseDto) {
+    return this.service.createPhrase(dto);
+  }
+
+  @Put('phrases/:id')
+  updatePhrase(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePhraseDto,
+  ) {
+    return this.service.updatePhrase(id, dto);
+  }
+
+  @Delete('phrases/:id')
+  removePhrase(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.removePhrase(id);
+  }
+
+  // ==================== SCENARIOS ====================
+
+  @Get('scenarios')
+  findAllScenarios(@Query('category_id') categoryId?: string) {
+    return this.service.findAllScenarios(categoryId);
+  }
+
+  @Get('scenarios/:id')
+  findOneScenario(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOneScenario(id);
+  }
+
+  @Post('scenarios')
+  createScenario(@Body() dto: CreateScenarioDto) {
+    return this.service.createScenario(dto);
+  }
+
+  @Put('scenarios/:id')
+  updateScenario(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateScenarioDto,
+  ) {
+    return this.service.updateScenario(id, dto);
+  }
+
+  @Delete('scenarios/:id')
+  removeScenario(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.removeScenario(id);
+  }
+
+  // ==================== FAQs ====================
+
+  @Get('faqs')
+  findAllFAQs(@Query('category_id') categoryId?: string) {
+    return this.service.findAllFAQs(categoryId);
+  }
+
+  @Get('faqs/:id')
+  findOneFAQ(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOneFAQ(id);
+  }
+
+  @Post('faqs')
+  createFAQ(@Body() dto: CreateFAQDto) {
+    return this.service.createFAQ(dto);
+  }
+
+  @Put('faqs/:id')
+  updateFAQ(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateFAQDto,
+  ) {
+    return this.service.updateFAQ(id, dto);
+  }
+
+  @Delete('faqs/:id')
+  removeFAQ(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.removeFAQ(id);
+  }
+}

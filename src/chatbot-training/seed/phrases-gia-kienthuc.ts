@@ -1,0 +1,126 @@
+export const SEED_PHRASES_GIA = [
+  // ===== BÁO GIÁ & CHI PHÍ =====
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'hoi_gia_chung',
+    user_message: 'Niềng răng bao nhiêu tiền?',
+    bot_response: 'Giá niềng khay trong suốt dao động từ 33 triệu -> 65 triệu. Gói 65 TRIỆU đang ưu đãi TRỌN GÓI còn 45 TRIỆU.',
+    keywords: ['giá', 'bao nhiêu', 'chi phí', 'tiền'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'bao_gia_2_goi',
+    user_message: 'Có mấy gói niềng?',
+    bot_response: 'Chi phí niềng khay trong suốt Dr.Wondersmile có 2 gói:\n- Gói niềng cơ bản 33 triệu.\n- Gói niềng chuyên sâu 65 triệu.',
+    keywords: ['gói niềng', 'mấy gói', 'loại nào'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'goi_co_ban',
+    user_message: 'Gói 33 triệu gồm gì?',
+    bot_response: 'Gói niềng cơ bản 33 triệu:\n- Phù hợp tình trạng răng thưa nhẹ, răng đã niềng cần niềng lại.\n- Thời gian niềng dưới 6 tháng.',
+    keywords: ['gói cơ bản', '33 triệu', 'gói rẻ'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'goi_chuyen_sau',
+    user_message: 'Gói 45 triệu gồm gì?',
+    bot_response: 'Gói niềng chuyên sâu 65 triệu ƯU ĐÃI còn 45 Triệu:\n- Phù hợp tình trạng răng trung bình, khó như răng khấp khểnh, lộn xộn, hô, móm, lệch khớp cắn, thưa nhiều, mất 1 2 răng.\n- Thời gian niềng trên 6 tháng.',
+    keywords: ['gói chuyên sâu', '45 triệu', '65 triệu', 'gói cao'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'dich_vu_goi_nieng',
+    user_message: 'Gói niềng bao gồm những gì?',
+    bot_response: 'Gói niềng khay bên em bao gồm khay niềng, mài kẽ, gắn attachment, nhổ răng hỗ trợ niềng (nếu có), cắm vis (nếu có), vệ sinh răng.',
+    keywords: ['bao gồm', 'dịch vụ', 'gồm gì'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'tra_gop',
+    user_message: 'Có trả góp không?',
+    bot_response: 'Bên em có hỗ trợ trả góp không lãi suất qua thẻ tín dụng.\n- Thời gian trả góp từ 6 tháng trở lên.\n- Thanh toán 50%. Phần còn lại góp hằng tháng.',
+    keywords: ['trả góp', 'thanh toán', 'lãi suất'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'hinh_thuc_thanh_toan',
+    user_message: 'Thanh toán như thế nào?',
+    bot_response: 'Hình thức thanh toán linh động, có hỗ trợ trả góp 0% lãi suất với thời gian từ 6 tháng đến 12 tháng. Hỗ trợ trực tiếp ở nha khoa hay qua thẻ tín dụng đều được. Thanh toán chỉ từ 30% đến 50%.',
+    keywords: ['thanh toán', 'hình thức', 'chuyển khoản'],
+  },
+  {
+    category: 'Báo giá & Chi phí',
+    intent: 'uu_dai_tham_kham',
+    user_message: 'Có ưu đãi gì không?',
+    bot_response: 'Đặt hẹn online nhận ngay gói QUÀ TẶNG trị giá 5 Triệu Đồng:\n+ Tặng 1 tăm nước cao cấp\n+ Gói TẨY TRẮNG RĂNG NGỌC TRAI',
+    keywords: ['ưu đãi', 'khuyến mãi', 'quà tặng', 'giảm giá'],
+  },
+];
+
+export const SEED_PHRASES_KIENTHUC = [
+  // ===== KIẾN THỨC NIỀNG RĂNG =====
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'uu_diem_khay',
+    user_message: 'Niềng khay có ưu điểm gì?',
+    bot_response: 'Ưu điểm của niềng khay trong suốt độc quyền bên em:\n+ HẠN CHẾ NHỔ RĂNG, ít đau, không cợm cấn khó chịu, không nhiệt lỡ miệng hay hôi miệng.\n+ Ăn uống thuận tiện, không sợ vướng víu khi ăn, dễ dàng vệ sinh khay.\n+ Tiết kiệm thời gian không cần tái khám nhiều lần.\n+ Ở tỉnh hay đi du học vẫn niềng được vì có app tích hợp điện thoại theo dõi niềng từ xa.',
+    keywords: ['ưu điểm', 'khay trong suốt', 'tốt', 'lợi ích'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'quy_trinh_nieng',
+    user_message: 'Quy trình niềng như thế nào?',
+    bot_response: 'Quy trình thăm khám niềng đến khi nhận khay niềng thì mình ghé nha khoa 3 lần:\n+ Lần 1: Thăm khám tư vấn -> Scan răng 3D + Chụp film (nếu KH chưa có chụp)\n+ Lần 2: Sau 3-5 ngày mình đến CHECK phác đồ 3D. Nếu đồng ý niềng thì mình thanh toán hoặc không nếu chưa ưng phác đồ.\n+ Lần 3: Ghé nhận khay và làm các dịch vụ liên quan đến ca niềng. Bác sĩ hướng dẫn cách đeo khay và vệ sinh răng tại nhà.',
+    keywords: ['quy trình', 'các bước', 'làm sao', 'thế nào'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'cong_nghe_nieng',
+    user_message: 'Có mấy loại công nghệ niềng?',
+    bot_response: 'Bên em có 2 công nghệ niềng khay là công nghệ niềng khay ban ngày và công nghệ niềng khay ban đêm.\n+ Công nghệ niềng khay ban ngày thì mình sẽ đeo niềng khay ít nhất 20 tiếng mỗi ngày.\n+ Công nghệ niềng khay ban đêm thì mình đeo khay ít nhất 10 tiếng vào buổi tối. Còn ban ngày đeo hoặc không.\nVì thời gian đeo khay đêm ít hơn khay ngày nên quá trình niềng sẽ dài hơn từ 1 tháng đến 2 tháng.',
+    keywords: ['công nghệ', 'ban đêm', 'ban ngày', 'loại'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'thoi_gian_nieng',
+    user_message: 'Niềng mất bao lâu?',
+    bot_response: 'Đặc biệt HẠN CHẾ NHỔ RĂNG, niềng răng đều vẫn BẢO TỒN RĂNG THẬT ở mức độ tối đa sẽ giúp đẩy quá trình niềng nên thời gian niềng chỉ từ 6 tháng đến 12 tháng.',
+    keywords: ['bao lâu', 'thời gian', 'mấy tháng'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'thong_tin_hang_khay',
+    user_message: 'Hãng khay bên em là gì?',
+    bot_response: 'Thông tin hãng khay niềng Dr.Wondersmile:\n- Nhà máy sản xuất in khay tại Đức.\n- Có mặt 17 nước trên thế giới với hơn 400.000 case niềng thành công.\n- Chất liệu Zendura FLX 3 lớp, không chứa BPA (chất nhựa gây ung thư)\n- Kế hoạch 3D được lên bởi 100% CHUYÊN GIA TIẾN SĨ NƯỚC NGOÀI\n- An toàn sức khỏe được chứng nhận FDA Cục Quản lý thực phẩm và dược phẩm Hoa Kỳ\n- Hợp đồng cam kết văn bản 1:1',
+    keywords: ['hãng khay', 'wondersmile', 'xuất xứ', 'chất liệu'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'bao_hanh',
+    user_message: 'Có bảo hành không?',
+    bot_response: 'Hãng khay Dr.Wondersmile cam kết hợp đồng niềng THÀNH CÔNG 100%, bảo hộ rủi ro và BẢO HÀNH trong quá trình niềng. Tất cả CAM KẾT đều được hiển thị trên hợp đồng văn bản rõ ràng chi tiết khi niềng. Nếu sau khi niềng kết thúc mà mình so sánh theo kế hoạch với tình trạng răng hiện tại không đạt yêu cầu, phía nha khoa sẽ bảo hành in khay tinh chỉnh miễn phí 100%.',
+    keywords: ['bảo hành', 'cam kết', 'đảm bảo', 'thành công'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'thoi_gian_co_khay',
+    user_message: 'Bao lâu có khay?',
+    bot_response: 'Khay niềng không có sẵn, khay sẽ được in khi mình duyệt kế hoạch niềng và thanh toán. Thời gian có khay sẽ mất khoảng 3 đến 4 tuần. Trường hợp khách đi du học cần gấp thì khoảng 2 tuần có khay.',
+    keywords: ['bao lâu có khay', 'chờ khay', 'thời gian khay'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'phac_do_3d',
+    user_message: 'Phác đồ 3D là gì?',
+    bot_response: 'Video mô phỏng tình trạng răng khi lên phác đồ 3D. Từ video mình thấy được răng sẽ di chuyển như thế nào khi niềng. Phác đồ còn có cụ thể chính xác số ngày hoàn thành và mọi công đoạn điều trị. Khi mình lên phác đồ 3D về tình trạng răng của mình sẽ cụ thể chi tiết hơn.',
+    keywords: ['phác đồ', '3D', 'mô phỏng', 'kế hoạch'],
+  },
+  {
+    category: 'Kiến thức niềng răng',
+    intent: 'nieng_ban_dem',
+    user_message: 'Niềng ban đêm là gì?',
+    bot_response: 'Bên em đang độc quyền CÔNG NGHỆ NIỀNG KHAY BAN ĐÊM chỉ đeo 10 tiếng. Giúp thời gian đeo niềng ít, thuận tiện làm việc.',
+    keywords: ['ban đêm', 'đeo đêm', '10 tiếng'],
+  },
+];
