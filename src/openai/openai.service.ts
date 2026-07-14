@@ -25,7 +25,6 @@ export class OpenAIService {
    * Includes explicit instructions to incorporate the logo.
    */
   buildPrompt(brand: Brand, template: Template | null, userInput: string): string {
-    // User's prompt is the PRIMARY instruction
     let mainPrompt = '';
 
     if (template) {
@@ -36,28 +35,28 @@ export class OpenAIService {
       templateText = templateText.replace('{{accent_color}}', brand.accent_color || '');
       templateText = templateText.replace('{{description}}', brand.description || '');
 
-      // If template has {{user_input}} placeholder, replace it
       if (templateText.includes('{{user_input}}')) {
         templateText = templateText.replace('{{user_input}}', userInput);
         mainPrompt = templateText;
       } else {
-        // Template doesn't have placeholder - put user prompt FIRST, template as context
         mainPrompt = `${userInput}\n\nTemplate style: ${templateText}`;
       }
     } else {
-      // No template - user prompt is everything
       mainPrompt = userInput;
     }
 
-    // Brand context as supplementary info (not override user intent)
-    const brandSupport = [
-      `Brand: "${brand.name}"`,
-      `Colors: ${brand.primary_color}${brand.secondary_color ? ', ' + brand.secondary_color : ''}`,
-      brand.logo_url ? 'Include the provided brand logo in the design.' : '',
-    ].filter(Boolean).join('. ');
+    // Brand context — hướng dẫn AI rõ ràng hơn về logo và màu sắc
+    const brandLines: string[] = [
+      `Brand name: "${brand.name}"`,
+      `Primary color: ${brand.primary_color}`,
+      brand.secondary_color ? `Secondary color: ${brand.secondary_color}` : '',
+      brand.description ? `Brand description: ${brand.description}` : '',
+      brand.logo_url
+        ? `IMPORTANT: Replace ALL existing logos/watermarks in the reference image with the provided brand logo of "${brand.name}". Keep the layout, composition, and overall design structure identical — only swap the brand identity elements (logo, colors, brand name text).`
+        : '',
+    ].filter(Boolean);
 
-    // User prompt FIRST (highest priority), brand info after
-    return `${mainPrompt}\n\n[Brand info: ${brandSupport}]`;
+    return `${mainPrompt}\n\n[Brand context:\n${brandLines.join('\n')}]`;
   }
 
   /**
@@ -114,16 +113,16 @@ export class OpenAIService {
 
   /**
    * Generate with reference images using images.edit()
-   * Passes ALL reference images so the model can see logo + style references
+   * Image[0] = brand logo (nếu có), Image[1..] = style/layout references
    */
   private async generateWithReferences(
     prompt: string,
     size: string,
     referenceImages: string[],
   ): Promise<string> {
-    // Download all reference images
     const imageFiles: any[] = [];
     this.logger.log(`Downloading ${referenceImages.length} reference images...`);
+
     for (let i = 0; i < Math.min(referenceImages.length, 4); i++) {
       try {
         this.logger.log(`  Downloading [${i}]: ${referenceImages[i]}`);
@@ -135,7 +134,7 @@ export class OpenAIService {
           const file = await toFile(buffer, `image_${i}.png`, { type: 'image/png' });
           imageFiles.push(file);
         } else {
-          this.logger.warn(`  Failed [${i}]: HTTP ${res.status} ${res.statusText}`);
+          this.logger.warn(`  Failed [${i}]: HTTP ${res.status}`);
         }
       } catch (err) {
         this.logger.warn(`  Error [${i}]: ${err.message}`);
@@ -149,10 +148,21 @@ export class OpenAIService {
       return this.generateTextOnly(prompt, size);
     }
 
-    // Enhance prompt: tell AI to USE these images in the design
-    const refNote = `Use ALL provided images as source material to create the design. Incorporate these images directly into the final banner/output. The images contain elements (products, people, objects, text) that MUST appear in the generated image.`;
+    // Xây dựng instruction rõ ràng hơn về vai trò từng ảnh
+    let imageInstruction: string;
+    if (referenceImages.length >= 2) {
+      // Ảnh đầu = logo brand, ảnh sau = layout tham khảo
+      imageInstruction = `Image[0] is the NEW BRAND LOGO — use it as the brand identity.
+Image[1..] are LAYOUT/STYLE REFERENCES — copy their composition, structure, color zones, and design layout exactly.
+TASK: Recreate the layout from the reference image(s) but replace ALL brand elements (logos, brand name, colors) with the new brand from Image[0].
+Keep all other design elements: composition, typography style, spacing, decorations, background structure.`;
+    } else {
+      // Chỉ có 1 ảnh — có thể là logo hoặc reference
+      imageInstruction = `Use the provided image as both style reference and source material.
+Incorporate it directly into the design according to the prompt instructions.`;
+    }
 
-    const fullPrompt = `${prompt}\n\n[Image instruction: ${refNote}]`;
+    const fullPrompt = `${prompt}\n\n[Image roles:\n${imageInstruction}]`;
 
     const response = await this.openai.images.edit({
       model: 'gpt-image-2',

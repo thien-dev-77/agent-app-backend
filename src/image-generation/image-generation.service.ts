@@ -77,9 +77,12 @@ export class ImageGenerationService {
     // Quality từ DTO (high/medium/low) - OpenAI dùng 'hd' hoặc 'standard'
     const quality = dto.quality === 'high' || dto.quality === 'hd' ? 'hd' : 'standard';
 
-    // Collect reference images (logo first, then user refs)
+    // Collect reference images:
+    // - user refs FIRST (layout/style references)  
+    // - brand logo LAST (new brand identity to swap in)
     const allReferences = [...(dto.reference_images || [])];
     if (brand?.logo_url) {
+      // Logo đặt đầu để AI biết đây là brand mới cần inject
       allReferences.unshift(brand.logo_url);
     }
 
