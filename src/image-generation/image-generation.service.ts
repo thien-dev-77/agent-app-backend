@@ -106,6 +106,8 @@ export class ImageGenerationService {
         prompt,
         size,
         allReferences.length > 0 ? allReferences : undefined,
+        brand?.name,
+        brand?.logo_url || undefined,
       );
 
       // Update with result

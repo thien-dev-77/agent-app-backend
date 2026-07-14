@@ -68,6 +68,8 @@ export class OpenAIService {
     prompt: string,
     size: string = '1024x1024',
     referenceImages?: string[],
+    brandName?: string,
+    logoUrl?: string,
   ): Promise<string> {
     this.logger.log(`Generating image with prompt: ${prompt.substring(0, 100)}...`);
 
@@ -75,14 +77,11 @@ export class OpenAIService {
       let b64Data: string;
 
       if (referenceImages && referenceImages.length > 0) {
-        // Use images.edit() to incorporate reference images (logo, etc.)
-        b64Data = await this.generateWithReferences(prompt, size, referenceImages);
+        b64Data = await this.generateWithReferences(prompt, size, referenceImages, brandName, logoUrl);
       } else {
-        // Use images.generate() for text-only
         b64Data = await this.generateTextOnly(prompt, size);
       }
 
-      // Upload to Supabase Storage
       const imageUrl = await this.uploadBase64ToSupabase(b64Data);
       this.logger.log('Image generated and uploaded successfully');
       return imageUrl;
@@ -112,6 +111,67 @@ export class OpenAIService {
   }
 
   /**
+   * STEP 0: Phân tích ảnh tham khảo — detect logos, brand elements, layout
+   * Trả về JSON mô tả vị trí logo, màu sắc, layout để build prompt chính xác hơn
+   */
+  private async analyzeReferenceForBrandSwap(
+    referenceImageUrls: string[],
+    newBrandName: string,
+    newLogoUrl?: string,
+  ): Promise<string> {
+    this.logger.log('[BrandSwap] Analyzing reference images for logo detection...');
+
+    const userContent: any[] = [
+      {
+        type: 'text',
+        text: `You are a professional brand design analyst.
+
+Analyze the provided reference image(s) and return a detailed prompt for recreating this design with a NEW BRAND.
+
+NEW BRAND: "${newBrandName}"
+${newLogoUrl ? `NEW LOGO: Will be provided as an additional image.` : ''}
+
+Your analysis must produce a ready-to-use image generation prompt that:
+1. DETECTS all existing logos, watermarks, brand names, and brand colors in the reference
+2. DESCRIBES the full layout, composition, spacing, and structure
+3. DESCRIBES all visual elements: background, decorations, typography style, CTA buttons
+4. DESCRIBES the subject/content (people, products, medical images, etc.) — keep these UNCHANGED
+5. EXPLICITLY INSTRUCTS to:
+   - REMOVE all detected logos, watermarks, and brand text from the reference
+   - REPLACE them with "${newBrandName}" branding${newLogoUrl ? ` using the new logo provided` : ''}
+   - Keep the EXACT same position, size, and style for the brand placement
+
+Return ONLY the final image generation prompt (in English), no explanation, no JSON.
+The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
+      },
+    ];
+
+    // Thêm tất cả reference images để phân tích
+    for (const url of referenceImageUrls.slice(0, 3)) {
+      userContent.push({
+        type: 'image_url',
+        image_url: { url, detail: 'high' },
+      });
+    }
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: userContent }],
+        temperature: 0.3,
+        max_tokens: 1200,
+      });
+
+      const analysisPrompt = response.choices[0]?.message?.content || '';
+      this.logger.log(`[BrandSwap] Analysis prompt (${analysisPrompt.length} chars): ${analysisPrompt.slice(0, 200)}...`);
+      return analysisPrompt;
+    } catch (err) {
+      this.logger.warn(`[BrandSwap] Analysis failed: ${err.message}`);
+      return '';
+    }
+  }
+
+  /**
    * Generate with reference images using images.edit()
    * Image[0] = brand logo (nếu có), Image[1..] = style/layout references
    */
@@ -119,7 +179,30 @@ export class OpenAIService {
     prompt: string,
     size: string,
     referenceImages: string[],
+    brandName?: string,
+    logoUrl?: string,
   ): Promise<string> {
+    // ── STEP 0: Phân tích ảnh tham khảo, detect logo cũ ──
+    // Tách logo (index 0) và reference images (index 1+)
+    const logoImageUrl = logoUrl || (referenceImages.length > 1 ? referenceImages[0] : undefined);
+    const styleRefs = referenceImages.length > 1 ? referenceImages.slice(1) : referenceImages;
+
+    let finalPrompt = prompt;
+
+    if (styleRefs.length > 0 && brandName) {
+      const analysisPrompt = await this.analyzeReferenceForBrandSwap(
+        styleRefs,
+        brandName,
+        logoImageUrl,
+      );
+      if (analysisPrompt) {
+        // Dùng analysis prompt làm base, append user intent
+        finalPrompt = `${analysisPrompt}\n\nAdditional instruction from user: ${prompt}`;
+        this.logger.log('[BrandSwap] Using analysis-based prompt');
+      }
+    }
+
+    // ── STEP 1: Download tất cả ảnh ──
     const imageFiles: any[] = [];
     this.logger.log(`Downloading ${referenceImages.length} reference images...`);
 
@@ -145,24 +228,24 @@ export class OpenAIService {
 
     if (imageFiles.length === 0) {
       this.logger.warn('No images downloaded, falling back to text-only generation');
-      return this.generateTextOnly(prompt, size);
+      return this.generateTextOnly(finalPrompt, size);
     }
 
-    // Xây dựng instruction rõ ràng hơn về vai trò từng ảnh
+    // ── STEP 2: Build image role instructions ──
     let imageInstruction: string;
     if (referenceImages.length >= 2) {
-      // Ảnh đầu = logo brand, ảnh sau = layout tham khảo
-      imageInstruction = `Image[0] is the NEW BRAND LOGO — use it as the brand identity.
-Image[1..] are LAYOUT/STYLE REFERENCES — copy their composition, structure, color zones, and design layout exactly.
-TASK: Recreate the layout from the reference image(s) but replace ALL brand elements (logos, brand name, colors) with the new brand from Image[0].
-Keep all other design elements: composition, typography style, spacing, decorations, background structure.`;
+      imageInstruction = `Image[0] is the NEW BRAND LOGO — use it as the new brand identity.
+Image[1..] are LAYOUT/STYLE REFERENCES — copy their composition exactly.
+REMOVE all existing logos, watermarks, brand names from the reference images.
+REPLACE with the new brand logo from Image[0] at the same position and size.`;
     } else {
-      // Chỉ có 1 ảnh — có thể là logo hoặc reference
-      imageInstruction = `Use the provided image as both style reference and source material.
-Incorporate it directly into the design according to the prompt instructions.`;
+      imageInstruction = `The provided image is the LAYOUT REFERENCE.
+Analyze and REMOVE any existing logos, watermarks, or brand text found in the image.
+${brandName ? `Replace with brand name "${brandName}" text${logoUrl ? ' and the new logo provided' : ''}.` : ''}
+Keep all other design elements, composition, and visual content unchanged.`;
     }
 
-    const fullPrompt = `${prompt}\n\n[Image roles:\n${imageInstruction}]`;
+    const fullPrompt = `${finalPrompt}\n\n[Image roles:\n${imageInstruction}]`;
 
     const response = await this.openai.images.edit({
       model: 'gpt-image-2',
