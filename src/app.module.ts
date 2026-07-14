@@ -11,6 +11,7 @@ import { VideoGenerationModule } from './video-generation/video-generation.modul
 import { ChatbotTrainingModule } from './chatbot-training/chatbot-training.module';
 import { CrmModule } from './crm/crm.module';
 import { GalleryModule } from './gallery/gallery.module';
+import { ReferenceImagesModule } from './reference-images/reference-images.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { GalleryModule } from './gallery/gallery.module';
     ChatbotTrainingModule,
     CrmModule,
     GalleryModule,
+    ReferenceImagesModule,
   ],
 })
 export class AppModule {}

@@ -13,6 +13,7 @@ import { Chatbot } from '../entities/chatbot.entity';
 import { Customer } from '../entities/customer.entity';
 import { Appointment } from '../entities/appointment.entity';
 import { KnowledgeImage } from '../entities/knowledge-image.entity';
+import { ReferenceImage } from '../entities/reference-image.entity';
 
 @Module({
   imports: [
@@ -38,13 +39,13 @@ import { KnowledgeImage } from '../entities/knowledge-image.entity';
             Customer,
             Appointment,
             KnowledgeImage,
+            ReferenceImage,
           ],
           synchronize: true,
           ssl: {
             rejectUnauthorized: false,
           },
           extra: {
-            // Force IPv4 connection
             family: 4,
           },
         };
