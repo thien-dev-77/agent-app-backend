@@ -17,7 +17,8 @@ export class ReferenceImagesService {
     label?: string,
     tags?: string[],
   ): Promise<ReferenceImage> {
-    const url = await this.uploadService.uploadFile(file, 'references');
+    // Dùng bucket 'uploads' (đã tồn tại trong Supabase)
+    const url = await this.uploadService.uploadFile(file, 'uploads');
     const entity = this.repo.create({
       url,
       original_name: file.originalname,
