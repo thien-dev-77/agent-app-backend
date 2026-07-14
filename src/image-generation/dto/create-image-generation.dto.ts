@@ -18,5 +18,13 @@ export class CreateImageGenerationDto {
   reference_images?: string[];
 
   @IsOptional()
+  @IsString()
+  size?: string;
+
+  @IsOptional()
+  @IsString()
+  quality?: string;
+
+  @IsOptional()
   metadata?: Record<string, any>;
 }

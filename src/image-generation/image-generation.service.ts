@@ -65,14 +65,17 @@ export class ImageGenerationService {
     this.logger.log(`[CREATE] brand: ${brand?.name || 'none'}, logo: ${brand?.logo_url || 'none'}`);
     this.logger.log(`[CREATE] refs from user: ${(dto.reference_images || []).length}`);
 
-    // Determine image size from template
-    let size = '1024x1024';
-    if (template) {
+    // Determine image size - ưu tiên từ DTO, sau đó từ template
+    let size = dto.size || '1024x1024';
+    if (!dto.size && template) {
       const w = template.width;
       const h = template.height;
       if (w > h) size = '1536x1024';
       else if (h > w) size = '1024x1536';
     }
+
+    // Quality từ DTO (high/medium/low) - OpenAI dùng 'hd' hoặc 'standard'
+    const quality = dto.quality === 'high' || dto.quality === 'hd' ? 'hd' : 'standard';
 
     // Collect reference images (logo first, then user refs)
     const allReferences = [...(dto.reference_images || [])];
