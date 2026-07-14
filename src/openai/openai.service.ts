@@ -71,6 +71,11 @@ export class OpenAIService {
     referenceImages?: string[],
     brandName?: string,
     logoUrl?: string,
+    options?: {
+      inputImageCount?: number;
+      styleReferenceImageCount?: number;
+      variationIndex?: number;
+    },
   ): Promise<string> {
     this.logger.log(`Generating image with prompt: ${prompt.substring(0, 100)}...`);
 
@@ -78,7 +83,7 @@ export class OpenAIService {
       let b64Data: string;
 
       if (referenceImages && referenceImages.length > 0) {
-        b64Data = await this.generateWithReferences(prompt, size, referenceImages, brandName, logoUrl);
+        b64Data = await this.generateWithReferences(prompt, size, referenceImages, brandName, logoUrl, options);
       } else {
         b64Data = await this.generateTextOnly(prompt, size);
       }
@@ -136,11 +141,13 @@ Your analysis must produce a ready-to-use image generation prompt that:
 1. DETECTS all existing logos, watermarks, brand names, and brand colors in the reference
 2. DESCRIBES the full layout, composition, spacing, and structure
 3. DESCRIBES all visual elements: background, decorations, typography style, CTA buttons
-4. DESCRIBES the subject/content (people, products, medical images, etc.) — keep these UNCHANGED
+4. DESCRIBES the subject/content placeholders (people, products, medical images, etc.) as layout roles, but do not require copying their identity
 5. EXPLICITLY INSTRUCTS to:
    - REMOVE all detected logos, watermarks, and brand text from the reference
    - REPLACE them with "${newBrandName}" branding${newLogoUrl ? ` using the new logo provided` : ''}
    - Keep the EXACT same position, size, and style for the brand placement
+
+If separate input subject images are provided later, the generated poster must replace the reference subject/person/product with those input subject images while preserving the reference layout.
 
 Return ONLY the final image generation prompt (in English), no explanation, no JSON.
 The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
@@ -182,12 +189,20 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
     referenceImages: string[],
     brandName?: string,
     logoUrl?: string,
+    options?: {
+      inputImageCount?: number;
+      styleReferenceImageCount?: number;
+      variationIndex?: number;
+    },
   ): Promise<string> {
     // ── STEP 0: Phân tích ảnh tham khảo, detect logo cũ ──
     // Chỉ coi ảnh đầu là logo khi brand thật sự có logoUrl.
     // Nếu không, mọi ảnh đều là input/reference để ghép hoặc giữ style.
     const logoImageUrl = logoUrl;
-    const styleRefs = logoUrl ? referenceImages.slice(1) : referenceImages;
+    const logoOffset = logoUrl ? 1 : 0;
+    const inputImageCount = options?.inputImageCount || 0;
+    const inputImages = referenceImages.slice(logoOffset, logoOffset + inputImageCount);
+    const styleRefs = referenceImages.slice(logoOffset + inputImageCount);
 
     let finalPrompt = prompt;
 
@@ -235,11 +250,27 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
 
     // ── STEP 2: Build image role instructions ──
     let imageInstruction: string;
-    if (logoUrl && referenceImages.length >= 2) {
-      imageInstruction = `Image[0] is the NEW BRAND LOGO — use it as the new brand identity.
-Image[1..] are LAYOUT/STYLE REFERENCES — copy their composition exactly.
-REMOVE all existing logos, watermarks, brand names from the reference images.
-REPLACE with the new brand logo from Image[0] at the same position and size.`;
+    if (inputImages.length > 0 || styleRefs.length > 0) {
+      const roleLines: string[] = [];
+      if (logoUrl) {
+        roleLines.push(`Image[0] is the NEW BRAND LOGO for "${brandName || 'the brand'}". Use it for brand identity and replace old logos/brand marks from style references.`);
+      }
+      if (inputImages.length > 0) {
+        const start = logoOffset;
+        const end = logoOffset + inputImages.length - 1;
+        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are INPUT SUBJECT IMAGES. These are the required real person/product/object assets that must appear in the final poster. Preserve identity, face, outfit, pose, product shape, and key visual details as much as possible.`);
+      }
+      if (styleRefs.length > 0) {
+        const start = logoOffset + inputImages.length;
+        const end = start + styleRefs.length - 1;
+        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are STYLE/LAYOUT REFERENCES only. Analyze their poster composition, text hierarchy, dental marketing layout, colors, decorations, spacing, and CTA structure. Do NOT copy their person/product when input subject images are provided.`);
+      }
+      roleLines.push('Create one coherent final marketing image, not a collage grid.');
+      roleLines.push('Remove watermarks, platform UI, unrelated logos, and old brand text from style references.');
+      if (options?.variationIndex) {
+        roleLines.push(`This is variation ${options.variationIndex}. Make the composition clearly different from other variations by changing subject placement, typography arrangement, decorative elements, or crop while preserving the same brief and brand.`);
+      }
+      imageInstruction = roleLines.join('\n');
     } else if (referenceImages.length >= 2) {
       imageInstruction = `The provided images are INPUT/REFERENCE IMAGES for one final composition.
 Use all relevant subjects, products, faces, visual elements, layout cues, and style references from these images according to the user's prompt.

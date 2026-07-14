@@ -64,6 +64,7 @@ export class ImageGenerationService {
     this.logger.log(`[CREATE] built prompt: "${prompt.slice(0, 100)}..."`);
     this.logger.log(`[CREATE] brand: ${brand?.name || 'none'}, logo: ${brand?.logo_url || 'none'}`);
     this.logger.log(`[CREATE] refs from user: ${(dto.reference_images || []).length}`);
+    this.logger.log(`[CREATE] input images: ${(dto.input_images || []).length}, style refs: ${(dto.style_reference_images || []).length}`);
 
     // Determine image size - ưu tiên từ DTO, sau đó từ template
     let size = dto.size || '1024x1024';
@@ -77,10 +78,12 @@ export class ImageGenerationService {
     // Quality từ DTO (high/medium/low) - OpenAI dùng 'hd' hoặc 'standard'
     const quality = dto.quality === 'high' || dto.quality === 'hd' ? 'hd' : 'standard';
 
-    // Collect reference images:
-    // - user refs FIRST (layout/style references)  
-    // - brand logo LAST (new brand identity to swap in)
-    const allReferences = [...(dto.reference_images || [])];
+    const inputImages = dto.input_images || [];
+    const styleReferenceImages = dto.style_reference_images || dto.reference_images || [];
+    const allReferences = [
+      ...inputImages,
+      ...styleReferenceImages.filter((url) => !inputImages.includes(url)),
+    ];
     if (brand?.logo_url) {
       // Logo đặt đầu để AI biết đây là brand mới cần inject
       allReferences.unshift(brand.logo_url);
@@ -92,8 +95,13 @@ export class ImageGenerationService {
       template_id: dto.template_id || null,
       prompt,
       status: ImageGenerationStatus.PROCESSING,
-      reference_images: dto.reference_images || null,
-      metadata: dto.metadata || null,
+      reference_images: allReferences.length > 0 ? allReferences : null,
+      metadata: {
+        ...(dto.metadata || {}),
+        input_images: inputImages,
+        style_reference_images: styleReferenceImages,
+        variation_index: dto.variation_index,
+      },
     });
 
     const saved = await this.imageGenRepository.save(imageGen);
@@ -108,6 +116,11 @@ export class ImageGenerationService {
         allReferences.length > 0 ? allReferences : undefined,
         brand?.name,
         brand?.logo_url || undefined,
+        {
+          inputImageCount: inputImages.length,
+          styleReferenceImageCount: styleReferenceImages.length,
+          variationIndex: dto.variation_index,
+        },
       );
 
       // Update with result
