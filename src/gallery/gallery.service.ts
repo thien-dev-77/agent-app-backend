@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as galleryData from './data/gallery-data.json';
+import * as galleryDataRaw from './data/gallery-data.json';
 
 export interface GalleryItem {
   id: number;
@@ -31,7 +31,14 @@ export interface PromptResponse {
 @Injectable()
 export class GalleryService {
   private readonly logger = new Logger(GalleryService.name);
-  private readonly galleryItems: GalleryItem[] = galleryData as GalleryItem[];
+  private readonly galleryItems: GalleryItem[];
+
+  constructor() {
+    // Handle both default export and direct array
+    const data = (galleryDataRaw as any).default || galleryDataRaw;
+    this.galleryItems = Array.isArray(data) ? data : [];
+    this.logger.log(`Loaded ${this.galleryItems.length} gallery items`);
+  }
 
   async getGalleryImages(
     limit = 24,
