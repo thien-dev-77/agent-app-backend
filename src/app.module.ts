@@ -10,6 +10,7 @@ import { GeminiModule } from './gemini/gemini.module';
 import { VideoGenerationModule } from './video-generation/video-generation.module';
 import { ChatbotTrainingModule } from './chatbot-training/chatbot-training.module';
 import { CrmModule } from './crm/crm.module';
+import { GalleryModule } from './gallery/gallery.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CrmModule } from './crm/crm.module';
     VideoGenerationModule,
     ChatbotTrainingModule,
     CrmModule,
+    GalleryModule,
   ],
 })
 export class AppModule {}
