@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as galleryData from './data/gallery-data.json';
 
 export interface GalleryItem {
   id: number;
@@ -30,7 +31,7 @@ export interface PromptResponse {
 @Injectable()
 export class GalleryService {
   private readonly logger = new Logger(GalleryService.name);
-  private readonly API_BASE = 'https://promptsref.com/api';
+  private readonly galleryItems: GalleryItem[] = galleryData as GalleryItem[];
 
   async getGalleryImages(
     limit = 24,
@@ -38,55 +39,59 @@ export class GalleryService {
     sort = 'latest',
     model = 'gpt-image',
   ): Promise<GalleryResponse> {
-    try {
-      const url = `${this.API_BASE}/home/showcase-works?limit=${limit}&offset=${offset}&sort=${sort}&model=${model}`;
-      
-      this.logger.log(`Fetching gallery: ${url}`);
-      
-      const res = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      });
-
-      if (!res.ok) {
-        this.logger.error(`Gallery API error: ${res.status} ${res.statusText}`);
-        return { data: [], nextOffset: offset, hasMore: false };
-      }
-
-      const data = await res.json();
-      this.logger.log(`Fetched ${data.data?.length || 0} images`);
-      return data;
-    } catch (error) {
-      this.logger.error(`Gallery fetch error: ${error.message}`);
-      return { data: [], nextOffset: offset, hasMore: false };
+    this.logger.log(`Fetching gallery: limit=${limit}, offset=${offset}`);
+    
+    // Filter and sort
+    let items = [...this.galleryItems];
+    
+    if (sort === 'latest') {
+      items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
+    
+    // Pagination
+    const paginatedItems = items.slice(offset, offset + limit);
+    const nextOffset = offset + limit;
+    const hasMore = nextOffset < items.length;
+    
+    this.logger.log(`Returning ${paginatedItems.length} items, hasMore: ${hasMore}`);
+    
+    return {
+      data: paginatedItems,
+      nextOffset,
+      hasMore,
+    };
   }
 
   async getPromptByShareId(shareId: string): Promise<PromptResponse> {
+    this.logger.log(`Looking up prompt for share_id: ${shareId}`);
+    
+    // Tìm trong static data
+    const item = this.galleryItems.find(i => i.share_id === shareId);
+    
+    if (item) {
+      return { prompt: item.prompt_excerpt || '' };
+    }
+    
+    // Nếu không tìm thấy, thử fetch từ API (fallback)
     try {
-      const url = `${this.API_BASE}/work/get-prompt-by-share-id?share_id=${shareId}`;
-      
-      this.logger.log(`Fetching prompt for share_id: ${shareId}`);
-      
-      const res = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      });
+      const res = await fetch(
+        `https://promptsref.com/api/work/get-prompt-by-share-id?share_id=${shareId}`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        }
+      );
 
-      if (!res.ok) {
-        this.logger.error(`Prompt API error: ${res.status} ${res.statusText}`);
-        return { prompt: '' };
+      if (res.ok) {
+        const data = await res.json();
+        return data;
       }
-
-      const data = await res.json();
-      return data;
     } catch (error) {
       this.logger.error(`Prompt fetch error: ${error.message}`);
-      return { prompt: '' };
     }
+    
+    return { prompt: '' };
   }
 }
