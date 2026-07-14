@@ -10,6 +10,7 @@ export interface GalleryItem {
   likes_count: number;
   view_count: number;
   created_at: string;
+  prompt: string | null;
   prompt_excerpt: string;
   model: string;
   size: string;
@@ -71,34 +72,18 @@ export class GalleryService {
 
   async getPromptByShareId(shareId: string): Promise<PromptResponse> {
     this.logger.log(`Looking up prompt for share_id: ${shareId}`);
-    
-    // Tìm trong static data
-    const item = this.galleryItems.find(i => i.share_id === shareId);
-    
-    if (item) {
-      return { prompt: item.prompt_excerpt || '' };
-    }
-    
-    // Nếu không tìm thấy, thử fetch từ API (fallback)
-    try {
-      const res = await fetch(
-        `https://promptsref.com/api/work/get-prompt-by-share-id?share_id=${shareId}`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        }
-      );
 
-      if (res.ok) {
-        const data = await res.json();
-        return data;
-      }
-    } catch (error) {
-      this.logger.error(`Prompt fetch error: ${error.message}`);
+    // Đọc thẳng từ data JSON (đã được pre-fetch đầy đủ)
+    const item = this.galleryItems.find(i => i.share_id === shareId);
+    if (item?.prompt) {
+      return { prompt: item.prompt };
     }
-    
+
+    // Fallback về prompt_excerpt nếu chưa có prompt đầy đủ
+    if (item?.prompt_excerpt) {
+      return { prompt: item.prompt_excerpt };
+    }
+
     return { prompt: '' };
   }
 }
