@@ -11,6 +11,7 @@ export class OpenAIService {
   private readonly openai: OpenAI;
   private readonly supabaseUrl: string;
   private readonly supabaseAnonKey: string;
+  private readonly maxReferenceImages = 10;
 
   constructor(private readonly configService: ConfigService) {
     this.openai = new OpenAI({
@@ -183,9 +184,10 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
     logoUrl?: string,
   ): Promise<string> {
     // ── STEP 0: Phân tích ảnh tham khảo, detect logo cũ ──
-    // Tách logo (index 0) và reference images (index 1+)
-    const logoImageUrl = logoUrl || (referenceImages.length > 1 ? referenceImages[0] : undefined);
-    const styleRefs = referenceImages.length > 1 ? referenceImages.slice(1) : referenceImages;
+    // Chỉ coi ảnh đầu là logo khi brand thật sự có logoUrl.
+    // Nếu không, mọi ảnh đều là input/reference để ghép hoặc giữ style.
+    const logoImageUrl = logoUrl;
+    const styleRefs = logoUrl ? referenceImages.slice(1) : referenceImages;
 
     let finalPrompt = prompt;
 
@@ -206,7 +208,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
     const imageFiles: any[] = [];
     this.logger.log(`Downloading ${referenceImages.length} reference images...`);
 
-    for (let i = 0; i < Math.min(referenceImages.length, 4); i++) {
+    for (let i = 0; i < Math.min(referenceImages.length, this.maxReferenceImages); i++) {
       try {
         this.logger.log(`  Downloading [${i}]: ${referenceImages[i]}`);
         const res = await fetch(referenceImages[i]);
@@ -233,11 +235,17 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
 
     // ── STEP 2: Build image role instructions ──
     let imageInstruction: string;
-    if (referenceImages.length >= 2) {
+    if (logoUrl && referenceImages.length >= 2) {
       imageInstruction = `Image[0] is the NEW BRAND LOGO — use it as the new brand identity.
 Image[1..] are LAYOUT/STYLE REFERENCES — copy their composition exactly.
 REMOVE all existing logos, watermarks, brand names from the reference images.
 REPLACE with the new brand logo from Image[0] at the same position and size.`;
+    } else if (referenceImages.length >= 2) {
+      imageInstruction = `The provided images are INPUT/REFERENCE IMAGES for one final composition.
+Use all relevant subjects, products, faces, visual elements, layout cues, and style references from these images according to the user's prompt.
+Do not treat any input image as a new brand logo unless the prompt explicitly says so.
+Keep the final image coherent as a single generated image, not a collage grid.
+Remove watermarks, UI, and unrelated text from the reference images.`;
     } else {
       imageInstruction = `The provided image is the LAYOUT REFERENCE.
 Analyze and REMOVE any existing logos, watermarks, or brand text found in the image.
