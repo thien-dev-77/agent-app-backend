@@ -103,7 +103,7 @@ export class OpenAIService {
   private async generateTextOnly(prompt: string, size: string): Promise<string> {
     const response = await this.openai.images.generate({
       model: 'gpt-image-2',
-      prompt: prompt,
+      prompt: this.appendImageSafetyGuard(prompt),
       n: 1,
       size: size as '1024x1024' | '1536x1024' | '1024x1536',
       quality: 'high',
@@ -114,6 +114,20 @@ export class OpenAIService {
       throw new Error('No image data returned from OpenAI');
     }
     return b64Data;
+  }
+
+  private appendImageSafetyGuard(prompt: string): string {
+    return `${prompt}
+
+[Safety and professional advertising requirements:
+- The final output must always be a polished, professional, family-safe advertisement.
+- The final output must be non-sexual, non-erotic, and non-suggestive.
+- If any input person appears in revealing clothing, sleepwear, lingerie-like clothing, swimwear, bedroom/mirror-selfie styling, intimate framing, cleavage-emphasis, body-emphasis, or a seductive pose, adapt the person into modest professional advertising styling.
+- Use covered, appropriate clothing such as a blouse, blazer, clinic uniform, dental/medical coat, or modest casual top. Use a neutral, confident commercial pose.
+- Keep the person generally recognizable where allowed, but do not preserve sexualized wardrobe, pose, framing, expression, or mood.
+- No nudity, no erotic mood, no fetishized body focus, no provocative camera angle, and no intimate/bedroom context.
+- Prefer clean healthcare/commercial lighting, professional composition, and brand-safe dental marketing aesthetics.
+]`;
   }
 
   /**
@@ -262,7 +276,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       if (inputImages.length > 0) {
         const start = logoOffset;
         const end = logoOffset + inputImages.length - 1;
-        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are INPUT SUBJECT IMAGES. These are the required real person/product/object assets that must appear in the final poster. Preserve identity, face, outfit, pose, product shape, and key visual details as much as possible.`);
+        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are INPUT SUBJECT IMAGES. These are the required real person/product/object assets that must appear in the final poster. Preserve identity, face, product shape, and key visual details as much as possible, but change outfit, pose, framing, and mood to modest professional advertising styling whenever needed for safety.`);
       }
       if (styleRefs.length > 0) {
         const start = logoOffset + inputImages.length;
@@ -290,7 +304,7 @@ Replace all other text with new content derived from the user's prompt while pre
 Keep all other design elements, composition, and visual content unchanged.`;
     }
 
-    const fullPrompt = `${finalPrompt}\n\n[Image roles:\n${imageInstruction}]`;
+    const fullPrompt = this.appendImageSafetyGuard(`${finalPrompt}\n\n[Image roles:\n${imageInstruction}]`);
 
     const response = await this.openai.images.edit({
       model: 'gpt-image-2',
