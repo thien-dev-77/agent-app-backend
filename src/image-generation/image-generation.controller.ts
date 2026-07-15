@@ -56,4 +56,16 @@ export class ImageGenerationController {
     });
     return { prompt };
   }
+
+  @Post('analyze-reference-prompt')
+  async analyzeReferencePrompt(@Body() body: {
+    reference_image_urls: string[];
+    mode?: 'replace_subject' | 'replace_text' | 'redesign';
+  }): Promise<{ prompt: string }> {
+    const prompt = await this.openaiService.analyzeReferencePrompt({
+      referenceImageUrls: body.reference_image_urls,
+      mode: body.mode,
+    });
+    return { prompt };
+  }
 }

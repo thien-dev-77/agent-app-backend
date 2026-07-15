@@ -350,7 +350,7 @@ Keep all other design elements, composition, and visual content unchanged.`;
   /**
    * Generate creative prompt from brand info + user description
    */
- async generateCreativePrompt(params: {
+async generateCreativePrompt(params: {
   brandName?: string;
   primaryColor?: string;
   secondaryColor?: string;
@@ -449,6 +449,55 @@ Return ONLY valid JSON.`;
   // ═══════════════════════════════════════════════
   const prompt = this.buildModularPrompt(designSpec, params);
   this.logger.log(`[Step2] Final prompt (${prompt.length} chars): ${prompt.slice(0, 200)}...`);
+  return prompt;
+}
+
+async analyzeReferencePrompt(params: {
+  referenceImageUrls: string[];
+  mode?: 'replace_subject' | 'replace_text' | 'redesign';
+}): Promise<string> {
+  const urls = (params.referenceImageUrls || []).filter(Boolean).slice(0, 4);
+  if (urls.length === 0) {
+    throw new Error('referenceImageUrls is required');
+  }
+
+  const modeGuide = params.mode === 'replace_text'
+    ? 'Ưu tiên tạo prompt chỉ thay text, giữ nguyên hình ảnh, nhân vật, sản phẩm, nền, icon, logo và bố cục.'
+    : params.mode === 'redesign'
+      ? 'Ưu tiên tạo prompt thiết kế lại poster mới nhưng vẫn dựa trên style, màu sắc và tinh thần của ảnh tham khảo.'
+      : 'Ưu tiên tạo prompt thay nhân vật/sản phẩm từ ảnh đầu vào vào đúng bố cục của ảnh tham khảo.';
+
+  const analyzePrompt = `Bạn là Senior Creative Director cho quảng cáo nha khoa.
+
+Hãy phân tích ảnh tham khảo và tạo ra MỘT PROMPT TIẾNG VIỆT có thể đưa thẳng vào node Prompt để sinh ảnh.
+${modeGuide}
+
+Bắt buộc trong prompt đầu ra phải có:
+1. Mô tả bố cục: tỉ lệ ảnh, vị trí logo, nhân vật/sản phẩm, headline, CTA, footer, icon/badge.
+2. OCR toàn bộ text nhìn thấy được: headline, subheadline, ưu đãi, CTA, địa chỉ, số điện thoại, footer, text nhỏ. Nếu không đọc chắc, ghi "không rõ".
+3. Màu sắc chính: màu nền, màu chữ, màu brand, màu accent, gradient nếu có.
+4. Hướng dẫn sửa text: yêu cầu thay toàn bộ text cũ bằng nội dung mới người dùng nhập, không giữ text cũ trừ khi được yêu cầu.
+5. Hướng dẫn thay ảnh: nếu có ảnh đầu vào thì thay nhân vật/sản phẩm trong ảnh tham khảo bằng ảnh đầu vào, giữ bố cục.
+6. Ràng buộc an toàn: quảng cáo chuyên nghiệp, trang phục kín đáo, non-sexual, phù hợp nha khoa.
+
+Đầu ra chỉ là prompt tiếng Việt hoàn chỉnh, không markdown, không JSON, không giải thích.`;
+
+  const userContent: any[] = [{ type: 'text', text: analyzePrompt }];
+  for (const url of urls) {
+    userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } });
+  }
+
+  const response = await this.openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: userContent }],
+    temperature: 0.2,
+    max_tokens: 1400,
+  });
+
+  const prompt = response.choices[0]?.message?.content?.trim();
+  if (!prompt) {
+    throw new Error('No prompt returned from reference analysis');
+  }
   return prompt;
 }
 
