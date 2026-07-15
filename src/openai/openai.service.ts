@@ -139,15 +139,19 @@ ${newLogoUrl ? `NEW LOGO: Will be provided as an additional image.` : ''}
 
 Your analysis must produce a ready-to-use image generation prompt that:
 1. DETECTS all existing logos, watermarks, brand names, and brand colors in the reference
-2. DESCRIBES the full layout, composition, spacing, and structure
-3. DESCRIBES all visual elements: background, decorations, typography style, CTA buttons
-4. DESCRIBES the subject/content placeholders (people, products, medical images, etc.) as layout roles, but do not require copying their identity
-5. EXPLICITLY INSTRUCTS to:
+2. READS/OCRs all visible text zones in the reference image, including headline, offer, CTA, small captions, benefit badges, footer, address/contact text, and legal/disclaimer text
+3. DESCRIBES the full layout, composition, spacing, and structure
+4. DESCRIBES all visual elements: background, decorations, typography style, CTA buttons
+5. DESCRIBES the subject/content placeholders (people, products, medical images, etc.) as layout roles, but do not require copying their identity
+6. EXPLICITLY INSTRUCTS to:
    - REMOVE all detected logos, watermarks, and brand text from the reference
    - REPLACE them with "${newBrandName}" branding${newLogoUrl ? ` using the new logo provided` : ''}
+   - REPLACE ALL visible text content from the reference with new text derived from the user's prompt and new brand context
+   - Preserve the text hierarchy, typography style, approximate text block positions, and relative sizes, but not the old wording
    - Keep the EXACT same position, size, and style for the brand placement
 
 If separate input subject images are provided later, the generated poster must replace the reference subject/person/product with those input subject images while preserving the reference layout.
+The final output must not retain old promotion text, old prices, old phone numbers, old address, old CTA, old brand name, old logo text, or any original reference wording unless the user explicitly asks to keep it.
 
 Return ONLY the final image generation prompt (in English), no explanation, no JSON.
 The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
@@ -263,10 +267,11 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       if (styleRefs.length > 0) {
         const start = logoOffset + inputImages.length;
         const end = start + styleRefs.length - 1;
-        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are STYLE/LAYOUT REFERENCES only. Analyze their poster composition, text hierarchy, dental marketing layout, colors, decorations, spacing, and CTA structure. Do NOT copy their person/product when input subject images are provided.`);
+        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are STYLE/LAYOUT REFERENCES only. Analyze their poster composition, all visible text zones, text hierarchy, dental marketing layout, colors, decorations, spacing, and CTA structure. Do NOT copy their person/product when input subject images are provided.`);
       }
       roleLines.push('Create one coherent final marketing image, not a collage grid.');
       roleLines.push('Remove watermarks, platform UI, unrelated logos, and old brand text from style references.');
+      roleLines.push('Replace EVERY visible text string from style/layout references with new text derived from the user prompt and current brand context. Preserve the visual text hierarchy and approximate block placement, but do not keep old headlines, offers, prices, CTAs, addresses, phone numbers, small captions, or footer text.');
       if (options?.variationIndex) {
         roleLines.push(`This is variation ${options.variationIndex}. Make the composition clearly different from other variations by changing subject placement, typography arrangement, decorative elements, or crop while preserving the same brief and brand.`);
       }
@@ -279,8 +284,9 @@ Keep the final image coherent as a single generated image, not a collage grid.
 Remove watermarks, UI, and unrelated text from the reference images.`;
     } else {
       imageInstruction = `The provided image is the LAYOUT REFERENCE.
-Analyze and REMOVE any existing logos, watermarks, or brand text found in the image.
+Analyze all visible text zones and REMOVE any existing logos, watermarks, brand text, promotion text, prices, CTAs, address, phone number, and footer text found in the image.
 ${brandName ? `Replace with brand name "${brandName}" text${logoUrl ? ' and the new logo provided' : ''}.` : ''}
+Replace all other text with new content derived from the user's prompt while preserving text hierarchy, style, and approximate placement.
 Keep all other design elements, composition, and visual content unchanged.`;
     }
 
