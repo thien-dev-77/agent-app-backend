@@ -68,4 +68,24 @@ export class ImageGenerationController {
     });
     return { prompt };
   }
+
+  @Post('analyze-reference-structure')
+  async analyzeReferenceStructure(@Body() body: {
+    reference_image_urls: string[];
+    mode?: 'replace_subject' | 'replace_text' | 'redesign';
+  }) {
+    return this.openaiService.analyzeReferenceStructure({
+      referenceImageUrls: body.reference_image_urls,
+      mode: body.mode,
+    });
+  }
+
+  @Post('analyze-brand-asset')
+  async analyzeBrandAsset(@Body() body: {
+    logo_url: string;
+  }) {
+    return this.openaiService.analyzeBrandAsset({
+      logoUrl: body.logo_url,
+    });
+  }
 }

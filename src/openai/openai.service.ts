@@ -501,6 +501,162 @@ Bắt buộc trong prompt đầu ra phải có:
   return prompt;
 }
 
+async analyzeBrandAsset(params: {
+  logoUrl: string;
+}): Promise<{
+  brandName: string;
+  colors: { primary: string; secondary: string; accent: string };
+  fontStyle: string;
+  visualStyle: string;
+  confidence: string;
+}> {
+  if (!params.logoUrl) {
+    throw new Error('logoUrl is required');
+  }
+
+  const analyzePrompt = `Analyze this brand logo/brand image and return ONLY valid JSON.
+
+Schema:
+{
+  "brandName": "detected brand name or empty string",
+  "colors": {
+    "primary": "#RRGGBB",
+    "secondary": "#RRGGBB",
+    "accent": "#RRGGBB"
+  },
+  "fontStyle": "short Vietnamese description of the typography/font style",
+  "visualStyle": "short Vietnamese description of the brand visual style",
+  "confidence": "high|medium|low"
+}
+
+Rules:
+- OCR the logo text/brand name if visible.
+- Extract dominant brand colors as hex values.
+- If unsure, still return best estimates.
+- No markdown, no explanation.`;
+
+  const response = await this.openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: analyzePrompt },
+        { type: 'image_url', image_url: { url: params.logoUrl, detail: 'high' } },
+      ] as any,
+    }],
+    temperature: 0.1,
+    max_tokens: 700,
+  });
+
+  return this.parseJsonObject(response.choices[0]?.message?.content || '', {
+    brandName: '',
+    colors: { primary: '#2563eb', secondary: '#0ea5e9', accent: '#22c55e' },
+    fontStyle: 'Sans-serif hiện đại',
+    visualStyle: 'Nhận diện thương hiệu sạch, chuyên nghiệp',
+    confidence: 'low',
+  });
+}
+
+async analyzeReferenceStructure(params: {
+  referenceImageUrls: string[];
+  mode?: 'replace_subject' | 'replace_text' | 'redesign';
+}): Promise<{
+  prompt: string;
+  layout: Record<string, string>;
+  colors: Record<string, string>;
+  textItems: Array<{ role: string; originalText: string; suggestedText: string; position: string }>;
+  style: Record<string, string>;
+}> {
+  const urls = (params.referenceImageUrls || []).filter(Boolean).slice(0, 4);
+  if (urls.length === 0) {
+    throw new Error('referenceImageUrls is required');
+  }
+
+  const modeGuide = params.mode === 'replace_text'
+    ? 'Người dùng thường muốn chỉ thay text, giữ nguyên hình ảnh/bố cục.'
+    : params.mode === 'redesign'
+      ? 'Người dùng thường muốn thiết kế lại nhưng giữ tinh thần/style ảnh tham khảo.'
+      : 'Người dùng thường muốn thay nhân vật/sản phẩm bằng ảnh đầu vào nhưng giữ bố cục tham khảo.';
+
+  const analyzePrompt = `Bạn là Senior Creative Director cho quảng cáo nha khoa.
+Phân tích ảnh tham khảo và trả về ONLY valid JSON, không markdown, không giải thích.
+${modeGuide}
+
+Schema:
+{
+  "prompt": "Prompt tiếng Việt hoàn chỉnh để sinh ảnh từ reference này",
+  "layout": {
+    "ratio": "tỉ lệ ảnh",
+    "composition": "bố cục tổng thể",
+    "logoPosition": "vị trí logo",
+    "subjectPosition": "vị trí nhân vật/sản phẩm",
+    "textPosition": "vị trí vùng text chính",
+    "ctaPosition": "vị trí CTA/ưu đãi",
+    "notes": "ghi chú bố cục"
+  },
+  "colors": {
+    "background": "màu nền/gradient",
+    "primary": "màu chính",
+    "secondary": "màu phụ",
+    "accent": "màu nhấn",
+    "text": "màu chữ",
+    "notes": "ghi chú màu sắc"
+  },
+  "textItems": [
+    {
+      "role": "headline|subheadline|offer|cta|address|phone|footer|badge|body|other",
+      "originalText": "text OCR từ ảnh, nếu không chắc ghi không rõ",
+      "suggestedText": "text mới gợi ý để người dùng sửa nhanh",
+      "position": "vị trí text trong ảnh"
+    }
+  ],
+  "style": {
+    "fontStyle": "kiểu font/chữ",
+    "mood": "mood thiết kế",
+    "decorations": "icon/badge/decor",
+    "safety": "quảng cáo chuyên nghiệp, trang phục kín đáo, non-sexual"
+  }
+}
+
+Yêu cầu:
+- OCR toàn bộ text nhìn thấy: headline, ưu đãi, CTA, địa chỉ, phone, footer, badge, text nhỏ.
+- Tách text ra nhiều item để frontend hiển thị ô sửa riêng.
+- Prompt phải yêu cầu thay mọi text cũ bằng text trong textItems.suggestedText, giữ hierarchy/vị trí tương ứng.
+- Prompt phải nhắc nếu có ảnh đầu vào thì thay nhân vật/sản phẩm theo ảnh đầu vào.
+- Prompt phải family-safe, quảng cáo chuyên nghiệp, trang phục kín đáo, non-sexual.`;
+
+  const userContent: any[] = [{ type: 'text', text: analyzePrompt }];
+  for (const url of urls) {
+    userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } });
+  }
+
+  const response = await this.openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: userContent }],
+    temperature: 0.1,
+    max_tokens: 1800,
+  });
+
+  return this.parseJsonObject(response.choices[0]?.message?.content || '', {
+    prompt: await this.analyzeReferencePrompt(params),
+    layout: {},
+    colors: {},
+    textItems: [],
+    style: {},
+  });
+}
+
+private parseJsonObject<T>(text: string, fallback: T): T {
+  try {
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    return JSON.parse(match ? match[0] : cleaned);
+  } catch (err) {
+    this.logger.warn(`JSON parse failed: ${err.message}`);
+    return fallback;
+  }
+}
+
 /**
  * Build modular prompt from JSON spec + brand info
  * Deterministic - no AI call, just template
