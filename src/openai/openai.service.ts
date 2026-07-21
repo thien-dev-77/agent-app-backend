@@ -286,6 +286,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       roleLines.push('Create one coherent final marketing image, not a collage grid.');
       roleLines.push('Remove watermarks, platform UI, unrelated logos, and old brand text from style references.');
       roleLines.push('Replace EVERY visible text string from style/layout references with new text derived from the user prompt and current brand context. Preserve the visual text hierarchy and approximate block placement, but do not keep old headlines, offers, prices, CTAs, addresses, phone numbers, small captions, or footer text.');
+      roleLines.push('When the prompt provides a current brand palette, replace ALL non-photo design colors from style/layout references with the nearest brand colors: background, gradients, CTA blocks, badges, icons, borders, decorations, headline/subheadline colors, footer bars, and small UI accents. Do not preserve the old reference palette except neutral white/black/gray and natural photo colors.');
       if (options?.variationIndex) {
         roleLines.push(`This is variation ${options.variationIndex}. Make the composition clearly different from other variations by changing subject placement, typography arrangement, decorative elements, or crop while preserving the same brief and brand.`);
       }
@@ -507,6 +508,15 @@ async analyzeBrandAsset(params: {
   brandName: string;
   colors: { primary: string; secondary: string; accent: string };
   fontStyle: string;
+  fontAnalysis?: {
+    category: string;
+    weight: string;
+    letterShape: string;
+    caseStyle: string;
+    spacing: string;
+    comparableFonts: string[];
+    fontPrompt: string;
+  };
   visualStyle: string;
   confidence: string;
 }> {
@@ -525,6 +535,15 @@ Schema:
     "accent": "#RRGGBB"
   },
   "fontStyle": "short Vietnamese description of the typography/font style",
+  "fontAnalysis": {
+    "category": "sans-serif|serif|script|display|rounded|geometric|humanist|condensed|other",
+    "weight": "thin|light|regular|medium|semibold|bold|extrabold|mixed",
+    "letterShape": "Vietnamese description of letterforms: rounded/sharp/geometric/humanist/condensed/wide/italic/etc",
+    "caseStyle": "uppercase|lowercase|title case|mixed",
+    "spacing": "tight|normal|wide",
+    "comparableFonts": ["closest common font/style 1", "closest common font/style 2"],
+    "fontPrompt": "Vietnamese instruction that can be reused in image prompt to recreate the brand typography style"
+  },
   "visualStyle": "short Vietnamese description of the brand visual style",
   "confidence": "high|medium|low"
 }
@@ -532,6 +551,8 @@ Schema:
 Rules:
 - OCR the logo text/brand name if visible.
 - Extract dominant brand colors as hex values.
+- Inspect the actual letterforms, not only the logo mood: font category, stroke weight, corner radius, proportions, casing, spacing, slant/italic, and Vietnamese accent styling.
+- If the exact font is unknown, estimate the nearest typography category and comparable common fonts/styles. Do not answer only "modern sans-serif" unless no more detail is visible.
 - If unsure, still return best estimates.
 - No markdown, no explanation.`;
 
@@ -552,6 +573,15 @@ Rules:
     brandName: '',
     colors: { primary: '#2563eb', secondary: '#0ea5e9', accent: '#22c55e' },
     fontStyle: 'Sans-serif hiện đại',
+    fontAnalysis: {
+      category: 'sans-serif',
+      weight: 'semibold',
+      letterShape: 'Chữ sans-serif hiện đại, nét sạch, dễ đọc',
+      caseStyle: 'mixed',
+      spacing: 'normal',
+      comparableFonts: ['Inter', 'Montserrat'],
+      fontPrompt: 'Dùng kiểu chữ sans-serif hiện đại, nét rõ, dễ đọc, phù hợp thương hiệu nha khoa chuyên nghiệp.',
+    },
     visualStyle: 'Nhận diện thương hiệu sạch, chuyên nghiệp',
     confidence: 'low',
   });
@@ -564,6 +594,13 @@ async analyzeReferenceStructure(params: {
   prompt: string;
   layout: Record<string, string>;
   colors: Record<string, string>;
+  colorReplacements: Array<{
+    originalColor: string;
+    originalUsage: string;
+    replaceWith: string;
+    brandRole: string;
+    note: string;
+  }>;
   textItems: Array<{ role: string; originalText: string; suggestedText: string; position: string }>;
   style: Record<string, string>;
 }> {
@@ -602,6 +639,15 @@ Schema:
     "text": "màu chữ",
     "notes": "ghi chú màu sắc"
   },
+  "colorReplacements": [
+    {
+      "originalColor": "#RRGGBB hoặc mô tả màu/gradient trong ảnh tham khảo",
+      "originalUsage": "background|gradient|headline|subheadline|CTA|badge|icon|border|decoration|footer|other",
+      "replaceWith": "brand.primary|brand.secondary|brand.accent|brand.text|brand.background|neutral",
+      "brandRole": "primary|secondary|accent|text|background|neutral",
+      "note": "màu này đang dùng ở đâu và nên đổi sang vai trò màu brand nào"
+    }
+  ],
   "textItems": [
     {
       "role": "headline|subheadline|offer|cta|address|phone|footer|badge|body|other",
@@ -621,6 +667,8 @@ Schema:
 Yêu cầu:
 - OCR toàn bộ text nhìn thấy: headline, ưu đãi, CTA, địa chỉ, phone, footer, badge, text nhỏ.
 - Tách text ra nhiều item để frontend hiển thị ô sửa riêng.
+- Kiểm tra toàn bộ màu quan trọng trong ảnh tham khảo: nền, gradient, headline, subheadline, CTA, badge, icon, border, decoration, footer, shadow/tint.
+- Với mỗi màu design không thuộc ảnh người/sản phẩm, tạo colorReplacements để frontend thay palette cũ bằng màu brand. Không giữ palette cũ nếu người dùng có brand.
 - Prompt phải yêu cầu thay mọi text cũ bằng text trong textItems.suggestedText, giữ hierarchy/vị trí tương ứng.
 - Prompt phải nhắc nếu có ảnh đầu vào thì thay nhân vật/sản phẩm theo ảnh đầu vào.
 - Prompt phải family-safe, quảng cáo chuyên nghiệp, trang phục kín đáo, non-sexual.`;
@@ -641,6 +689,7 @@ Yêu cầu:
     prompt: await this.analyzeReferencePrompt(params),
     layout: {},
     colors: {},
+    colorReplacements: [],
     textItems: [],
     style: {},
   });
