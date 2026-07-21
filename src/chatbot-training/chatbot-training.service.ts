@@ -247,6 +247,7 @@ export class ChatbotTrainingService {
   async chat(
     message: string,
     history: { role: 'user' | 'assistant'; content: string }[] = [],
+    customSystemPrompt?: string,
   ): Promise<{ reply: string }> {
     // Lấy toàn bộ dữ liệu training để build system prompt
     const [phrases, scenarios, faqs, categories, images] = await Promise.all([
@@ -258,7 +259,10 @@ export class ChatbotTrainingService {
     ]);
 
     // Build system prompt từ dữ liệu đào tạo
-    const systemPrompt = this.buildSystemPrompt(phrases, scenarios, faqs, categories, images);
+    const trainingPrompt = this.buildSystemPrompt(phrases, scenarios, faqs, categories, images);
+    const systemPrompt = customSystemPrompt?.trim()
+      ? `${customSystemPrompt.trim()}\n\n${trainingPrompt}`
+      : trainingPrompt;
 
     // Gọi ChatGPT
     const messages = [

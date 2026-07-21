@@ -14,6 +14,10 @@ export class ChatRequestDto {
   message: string;
 
   @IsOptional()
+  @IsString()
+  system_prompt?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ChatMessageDto)

@@ -113,7 +113,7 @@ export class ChatbotTrainingController {
 
   @Post('chat')
   chat(@Body() dto: ChatRequestDto) {
-    return this.service.chat(dto.message, dto.history || []);
+    return this.service.chat(dto.message, dto.history || [], dto.system_prompt);
   }
 
   @Post('chat/suggest')
