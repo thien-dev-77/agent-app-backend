@@ -276,7 +276,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       if (inputImages.length > 0) {
         const start = logoOffset;
         const end = logoOffset + inputImages.length - 1;
-        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are INPUT SUBJECT IMAGES. These are the required real person/product/object assets that must appear in the final poster. Preserve identity, face, product shape, and key visual details as much as possible, but change outfit, pose, framing, and mood to modest professional advertising styling whenever needed for safety.`);
+        roleLines.push(`Image[${start}${end > start ? `..${end}` : ''}] are INPUT SUBJECT IMAGES. These are the required real person/product/object assets that must appear in the final poster. Preserve identity, face, product shape, packaging, labels, object silhouette, and key visual details as much as possible, but change outfit, pose, framing, and mood to modest professional advertising styling whenever needed for safety.`);
       }
       if (styleRefs.length > 0) {
         const start = logoOffset + inputImages.length;
@@ -285,6 +285,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       }
       roleLines.push('Create one coherent final marketing image, not a collage grid.');
       roleLines.push('Remove watermarks, platform UI, unrelated logos, and old brand text from style references.');
+      roleLines.push('If style/layout references contain an old main product, packshot, dental object, mockup, device, tray, teeth image, before/after image, or other product slot, replace that old product/object with the matching product/object from INPUT SUBJECT IMAGES. Keep the slot position, scale, perspective, lighting, and surrounding layout from the reference, but do not keep the old reference product.');
       roleLines.push('Replace EVERY visible text string from style/layout references with new text derived from the user prompt and current brand context. Preserve the visual text hierarchy and approximate block placement, but do not keep old headlines, offers, prices, CTAs, addresses, phone numbers, small captions, or footer text.');
       roleLines.push('When the prompt provides a current brand palette, replace ALL non-photo design colors from style/layout references with the nearest brand colors: background, gradients, CTA blocks, badges, icons, borders, decorations, headline/subheadline/body text colors, large display typography/product-name colors, footer bars, and small UI accents. Do not preserve old gold/yellow/green/red/blue reference colors unless they are explicitly part of the current brand palette. Neutral white/black/gray and natural photo colors may remain only when needed for readability/realism.');
       if (options?.variationIndex) {
@@ -601,6 +602,14 @@ async analyzeReferenceStructure(params: {
     brandRole: string;
     note: string;
   }>;
+  productSlots: Array<{
+    role: string;
+    description: string;
+    position: string;
+    size: string;
+    shouldReplaceWithInput: boolean;
+    replacementInstruction: string;
+  }>;
   textItems: Array<{ role: string; originalText: string; suggestedText: string; position: string }>;
   style: Record<string, string>;
 }> {
@@ -648,6 +657,16 @@ Schema:
       "note": "màu này đang dùng ở đâu và nên đổi sang vai trò màu brand nào"
     }
   ],
+  "productSlots": [
+    {
+      "role": "main_product|secondary_product|mockup|device|packaging|before_after|decorative_product|other",
+      "description": "mô tả sản phẩm/vật thể chính đang xuất hiện trong ảnh tham khảo",
+      "position": "vị trí sản phẩm trong bố cục: trái/phải/giữa/trên/dưới + mô tả gần đúng",
+      "size": "kích thước tương đối: nhỏ|vừa|lớn|chiếm bao nhiêu phần khung",
+      "shouldReplaceWithInput": true,
+      "replacementInstruction": "cách thay sản phẩm này bằng ảnh đầu vào nhưng giữ bố cục/khung/ánh sáng/perspective"
+    }
+  ],
   "textItems": [
     {
       "role": "headline|subheadline|offer|cta|address|phone|footer|badge|body|other",
@@ -667,6 +686,9 @@ Schema:
 Yêu cầu:
 - OCR toàn bộ text nhìn thấy: headline, ưu đãi, CTA, địa chỉ, phone, footer, badge, text nhỏ.
 - Tách text ra nhiều item để frontend hiển thị ô sửa riêng.
+- Detect sản phẩm chính/vật thể chính trong ảnh tham khảo: hộp sản phẩm, mockup, khay niềng, răng, thiết bị, before/after, banner packshot, icon sản phẩm.
+- Với mọi sản phẩm chính/phụ không phải decoration thuần, tạo productSlots và đặt shouldReplaceWithInput=true để khi có ảnh đầu vào thì thay sản phẩm cũ bằng sản phẩm từ ảnh đầu vào, giữ vị trí/kích thước/perspective/ánh sáng của slot.
+- Nếu ảnh tham khảo có cả người mẫu và sản phẩm, tách rõ slot người/chủ thể trong layout và slot sản phẩm trong productSlots.
 - Kiểm tra toàn bộ màu quan trọng trong ảnh tham khảo: nền, gradient, headline, chữ display lớn/tên dịch vụ hoặc sản phẩm, subheadline, body text, CTA, badge, icon, border, decoration, footer, shadow/tint.
 - Bắt buộc đưa các màu chữ nổi bật như vàng/gold/gradient của headline hoặc tên sản phẩm/dịch vụ vào colorReplacements; không bỏ sót chỉ vì đó là text.
 - Với mỗi màu design không thuộc ảnh người/sản phẩm, tạo colorReplacements để frontend thay palette cũ bằng màu brand. Không giữ palette cũ nếu người dùng có brand.
@@ -691,6 +713,7 @@ Yêu cầu:
     layout: {},
     colors: {},
     colorReplacements: [],
+    productSlots: [],
     textItems: [],
     style: {},
   });
