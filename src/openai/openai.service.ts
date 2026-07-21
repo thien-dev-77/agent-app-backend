@@ -286,7 +286,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       roleLines.push('Create one coherent final marketing image, not a collage grid.');
       roleLines.push('Remove watermarks, platform UI, unrelated logos, and old brand text from style references.');
       roleLines.push('Replace EVERY visible text string from style/layout references with new text derived from the user prompt and current brand context. Preserve the visual text hierarchy and approximate block placement, but do not keep old headlines, offers, prices, CTAs, addresses, phone numbers, small captions, or footer text.');
-      roleLines.push('When the prompt provides a current brand palette, replace ALL non-photo design colors from style/layout references with the nearest brand colors: background, gradients, CTA blocks, badges, icons, borders, decorations, headline/subheadline colors, footer bars, and small UI accents. Do not preserve the old reference palette except neutral white/black/gray and natural photo colors.');
+      roleLines.push('When the prompt provides a current brand palette, replace ALL non-photo design colors from style/layout references with the nearest brand colors: background, gradients, CTA blocks, badges, icons, borders, decorations, headline/subheadline/body text colors, large display typography/product-name colors, footer bars, and small UI accents. Do not preserve old gold/yellow/green/red/blue reference colors unless they are explicitly part of the current brand palette. Neutral white/black/gray and natural photo colors may remain only when needed for readability/realism.');
       if (options?.variationIndex) {
         roleLines.push(`This is variation ${options.variationIndex}. Make the composition clearly different from other variations by changing subject placement, typography arrangement, decorative elements, or crop while preserving the same brief and brand.`);
       }
@@ -642,7 +642,7 @@ Schema:
   "colorReplacements": [
     {
       "originalColor": "#RRGGBB hoặc mô tả màu/gradient trong ảnh tham khảo",
-      "originalUsage": "background|gradient|headline|subheadline|CTA|badge|icon|border|decoration|footer|other",
+      "originalUsage": "background|gradient|headline|display_text|product_name|subheadline|body_text|CTA|badge|icon|border|decoration|footer|other",
       "replaceWith": "brand.primary|brand.secondary|brand.accent|brand.text|brand.background|neutral",
       "brandRole": "primary|secondary|accent|text|background|neutral",
       "note": "màu này đang dùng ở đâu và nên đổi sang vai trò màu brand nào"
@@ -667,7 +667,8 @@ Schema:
 Yêu cầu:
 - OCR toàn bộ text nhìn thấy: headline, ưu đãi, CTA, địa chỉ, phone, footer, badge, text nhỏ.
 - Tách text ra nhiều item để frontend hiển thị ô sửa riêng.
-- Kiểm tra toàn bộ màu quan trọng trong ảnh tham khảo: nền, gradient, headline, subheadline, CTA, badge, icon, border, decoration, footer, shadow/tint.
+- Kiểm tra toàn bộ màu quan trọng trong ảnh tham khảo: nền, gradient, headline, chữ display lớn/tên dịch vụ hoặc sản phẩm, subheadline, body text, CTA, badge, icon, border, decoration, footer, shadow/tint.
+- Bắt buộc đưa các màu chữ nổi bật như vàng/gold/gradient của headline hoặc tên sản phẩm/dịch vụ vào colorReplacements; không bỏ sót chỉ vì đó là text.
 - Với mỗi màu design không thuộc ảnh người/sản phẩm, tạo colorReplacements để frontend thay palette cũ bằng màu brand. Không giữ palette cũ nếu người dùng có brand.
 - Prompt phải yêu cầu thay mọi text cũ bằng text trong textItems.suggestedText, giữ hierarchy/vị trí tương ứng.
 - Prompt phải nhắc nếu có ảnh đầu vào thì thay nhân vật/sản phẩm theo ảnh đầu vào.
