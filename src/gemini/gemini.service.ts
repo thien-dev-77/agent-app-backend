@@ -48,7 +48,7 @@ export class GeminiService {
 
     const input: any[] = [];
     if (inputImageUrls && inputImageUrls.length > 0) {
-      for (const url of inputImageUrls.slice(0, 6)) {
+      for (const url of inputImageUrls.slice(0, 4)) {
         try {
           const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
           const base64 = Buffer.from(response.data).toString('base64');

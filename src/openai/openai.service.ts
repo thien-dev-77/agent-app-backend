@@ -752,7 +752,7 @@ async generateVideoStoryboard(params: {
     throw new Error('script is required');
   }
 
-  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 6);
+  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 4);
   const imageCount = imageUrls.length;
 
   const userContent: any[] = [{
