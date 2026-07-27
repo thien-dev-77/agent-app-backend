@@ -10,8 +10,5 @@ export class UpdateApiKeysDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^$|^AIza[A-Za-z0-9_-]+$/, {
-    message: 'Gemini API key must start with AIza',
-  })
   gemini_api_key?: string;
 }
