@@ -34,6 +34,11 @@ export class GeminiService {
   async generateVideo(
     prompt: string,
     inputImageUrls?: string[],
+    options?: {
+      aspectRatio?: '16:9' | '9:16';
+      durationSeconds?: number;
+      voiceStyle?: string;
+    },
   ): Promise<{ videoUrl: string }> {
     this.logger.log(`[Video] Starting generation`);
     this.logger.log(`[Video] Prompt: ${prompt.substring(0, 80)}...`);
@@ -43,7 +48,7 @@ export class GeminiService {
 
     const input: any[] = [];
     if (inputImageUrls && inputImageUrls.length > 0) {
-      for (const url of inputImageUrls.slice(0, 4)) {
+      for (const url of inputImageUrls.slice(0, 6)) {
         try {
           const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
           const base64 = Buffer.from(response.data).toString('base64');
@@ -56,17 +61,40 @@ export class GeminiService {
       }
     }
 
+    const imageCount = input.length;
+    const imageTags = imageCount > 0
+      ? [
+          `[# Sources <FIRST_FRAME>@Image1]`,
+          imageCount > 1
+            ? `[# References ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 2}`).join(' ')}]`
+            : '',
+          '',
+          `Image tag rules: Use Image1 as <FIRST_FRAME>, the starting frame. Use the remaining image(s) as references, not literal initial frames. Reference tags start at <IMAGE_REF_0> for Image2.`,
+        ].filter(Boolean).join('\n')
+      : '';
+
+    const videoPrompt = [
+      imageTags,
+      prompt,
+      options?.durationSeconds ? `Target duration: ${options.durationSeconds} seconds. Pace the storybook shots to fit this exact duration as closely as the model allows.` : '',
+      options?.voiceStyle ? `Audio/voice: ${options.voiceStyle}. Vietnamese language voiceover if narration is present. Keep speech natural, clear, and suitable for a professional dental advertisement.` : '',
+    ].filter(Boolean).join('\n\n');
+
     input.push({
       type: 'text',
       text: input.length > 0
-        ? `${prompt}\n\nUse the input image(s) as the visual source. Turn them into realistic footage. Use the image only as guidance for identity, subject, composition, and motion. Do not show any drawing/sketch/UI from the input in the final video unless explicitly requested.`
-        : prompt,
+        ? `${videoPrompt}\n\nUse Image1 as the starting frame when <FIRST_FRAME> is declared. Use the remaining tagged image(s) as references for video generation; they should not be used as literal initial frames. Turn the referenced subjects, products, composition, and motion guidance into realistic footage. Do not show any drawing/sketch/UI from the input in the final video unless explicitly requested.`
+        : videoPrompt,
     });
 
     this.logger.log('[Video] Using gemini-omni-flash-preview interactions...');
     const interaction = await ai.interactions.create({
       model: 'gemini-omni-flash-preview',
       input,
+      response_format: {
+        type: 'video',
+        aspect_ratio: options?.aspectRatio || '16:9',
+      },
       generationConfig: {
         videoConfig: {
           task: inputImageUrls?.length ? 'image_to_video' : 'text_to_video',

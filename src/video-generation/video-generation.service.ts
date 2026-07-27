@@ -34,13 +34,23 @@ export class VideoGenerationService {
       prompt: dto.prompt,
       input_image_url: dto.input_image_url || null,
       status: VideoGenerationStatus.PENDING,
+      duration: dto.duration_seconds || null,
+      metadata: {
+        aspect_ratio: dto.aspect_ratio || '16:9',
+        duration_seconds: dto.duration_seconds || null,
+        voice_style: dto.voice_style || '',
+      },
     });
 
     const saved = await this.videoGenRepository.save(videoGen);
 
     // Trigger async video generation (hỗ trợ nhiều ảnh)
     const imageUrls = dto.input_image_urls || (dto.input_image_url ? [dto.input_image_url] : undefined);
-    this.processGeneration(saved.id, dto.prompt, imageUrls);
+    this.processGeneration(saved.id, dto.prompt, imageUrls, {
+      aspectRatio: dto.aspect_ratio || '16:9',
+      durationSeconds: dto.duration_seconds,
+      voiceStyle: dto.voice_style,
+    });
 
     return saved;
   }
@@ -49,13 +59,18 @@ export class VideoGenerationService {
     id: string,
     prompt: string,
     inputImageUrls?: string[],
+    options?: {
+      aspectRatio?: '16:9' | '9:16';
+      durationSeconds?: number;
+      voiceStyle?: string;
+    },
   ): Promise<void> {
     try {
       await this.videoGenRepository.update(id, {
         status: VideoGenerationStatus.PROCESSING,
       });
 
-      const { videoUrl } = await this.geminiService.generateVideo(prompt, inputImageUrls);
+      const { videoUrl } = await this.geminiService.generateVideo(prompt, inputImageUrls, options);
 
       await this.videoGenRepository.update(id, {
         status: VideoGenerationStatus.COMPLETED,

@@ -765,16 +765,22 @@ Kịch bản người dùng:
 ${script}
 
 Số ảnh đầu vào: ${imageCount}
+Quy ước tag ảnh cho Gemini Omni:
+${imageCount > 0 ? `- Image1 = <FIRST_FRAME>, dùng làm khung hình bắt đầu.
+${imageCount > 1 ? Array.from({ length: imageCount - 1 }, (_, index) => `- Image${index + 2} = <IMAGE_REF_${index}>, dùng làm ảnh tham chiếu.`).join('\n') : ''}
+- Khi viết storybook, bắt buộc dùng đúng tag trong từng cảnh, ví dụ: "[0-3s] Starting from <FIRST_FRAME>..." hoặc "subject from <IMAGE_REF_0>...".
+- Với nhiều ảnh, dùng <FIRST_FRAME> cho cảnh mở đầu và <IMAGE_REF_N> cho các cảnh/đối tượng/tham chiếu tiếp theo.` : '- Không có ảnh đầu vào, tạo storybook từ text prompt.'}
 
 Yêu cầu output:
 - Viết bằng tiếng Việt, rõ ràng, có thể dùng làm prompt video.
 - Nếu có nhiều ảnh đầu vào, bắt buộc tạo một mục riêng cho từng ảnh theo đúng thứ tự: "Hình 1 / Trang 1", "Hình 2 / Trang 2", ...
+- Mỗi mục riêng phải ghi tag tương ứng: Hình 1 dùng <FIRST_FRAME>, Hình 2 dùng <IMAGE_REF_0>, Hình 3 dùng <IMAGE_REF_1>, ...
 - Mỗi hình/trang phải có: mô tả vai trò ảnh đó trong câu chuyện, thời lượng, hành động/chuyển động chủ thể, camera movement, ánh sáng, mood, text overlay nếu cần, transition sang hình kế tiếp.
 - Nếu chỉ có 1 ảnh, tạo 4-6 shot nhỏ dựa trên ảnh đó.
 - Giữ nhận diện người/sản phẩm/không gian từ từng ảnh; không biến thành nhân vật/sản phẩm khác.
 - Nếu ảnh là bản vẽ/mockup, chỉ dùng làm guide chuyển động và bố cục, không hiển thị nét vẽ trong final video trừ khi người dùng yêu cầu.
 - Quảng cáo chuyên nghiệp, family-safe, non-sexual, phù hợp nha khoa.
-- Cuối output có mục "Prompt video tổng hợp" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, nhắc rõ dùng từng input image theo thứ tự.
+- Cuối output có mục "Prompt video tổng hợp" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc giữ các tag <FIRST_FRAME> và <IMAGE_REF_N>.
 - Không dùng markdown table.`,
   }];
 
