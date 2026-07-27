@@ -757,9 +757,10 @@ async generateVideoStoryboard(params: {
 
   const userContent: any[] = [{
     type: 'text',
-    text: `Bạn là đạo diễn video quảng cáo nha khoa và prompt engineer cho Google Gemini/Omni video.
+    text: `Bạn là đạo diễn video quảng cáo và prompt engineer cho Google Gemini/Omni video.
 
-Tạo STORYBOOK/STORYBOARD theo từng ảnh đầu vào để đưa thẳng vào model tạo video.
+Tạo một kịch bản video ngắn tối đa 8 giây để đưa thẳng vào model tạo video.
+Không chia kịch bản thành nhiều phần theo từng ảnh. Không bắt buộc tạo 4 cảnh/4 trang.
 
 Kịch bản người dùng:
 ${script}
@@ -768,19 +769,21 @@ Số ảnh đầu vào: ${imageCount}
 Quy ước tag ảnh cho Gemini Omni:
 ${imageCount > 0 ? `- Image1 = <FIRST_FRAME>, dùng làm khung hình bắt đầu.
 ${imageCount > 1 ? Array.from({ length: imageCount - 1 }, (_, index) => `- Image${index + 2} = <IMAGE_REF_${index}>, dùng làm ảnh tham chiếu.`).join('\n') : ''}
-- Khi viết storybook, bắt buộc dùng đúng tag trong từng cảnh, ví dụ: "[0-3s] Starting from <FIRST_FRAME>..." hoặc "subject from <IMAGE_REF_0>...".
-- Với nhiều ảnh, dùng <FIRST_FRAME> cho cảnh mở đầu và <IMAGE_REF_N> cho các cảnh/đối tượng/tham chiếu tiếp theo.` : '- Không có ảnh đầu vào, tạo storybook từ text prompt.'}
+- Kịch bản phải bắt đầu từ <FIRST_FRAME>.
+- Nếu có ảnh tham chiếu khác, chỉ nhắc <IMAGE_REF_N> trong prompt tổng hợp khi thật sự cần giữ style/nhân vật/sản phẩm/phụ kiện. Không tạo mục riêng cho từng ảnh.` : '- Không có ảnh đầu vào, tạo kịch bản từ text prompt.'}
 
 Yêu cầu output:
 - Viết bằng tiếng Việt, rõ ràng, có thể dùng làm prompt video.
-- Nếu có nhiều ảnh đầu vào, bắt buộc tạo một mục riêng cho từng ảnh theo đúng thứ tự: "Hình 1 / Trang 1", "Hình 2 / Trang 2", ...
-- Mỗi mục riêng phải ghi tag tương ứng: Hình 1 dùng <FIRST_FRAME>, Hình 2 dùng <IMAGE_REF_0>, Hình 3 dùng <IMAGE_REF_1>, ...
-- Mỗi hình/trang phải có: mô tả vai trò ảnh đó trong câu chuyện, thời lượng, hành động/chuyển động chủ thể, camera movement, ánh sáng, mood, text overlay nếu cần, transition sang hình kế tiếp.
-- Nếu chỉ có 1 ảnh, tạo 4-6 shot nhỏ dựa trên ảnh đó.
-- Giữ nhận diện người/sản phẩm/không gian từ từng ảnh; không biến thành nhân vật/sản phẩm khác.
+- Tổng thời lượng không quá 8 giây.
+- Chỉ tạo một mục duy nhất: "### Hình 1 / Trang 1: <FIRST_FRAME>".
+- Trong mục này phải có: Thời gian [0-8s] hoặc ngắn hơn, Mô tả, Hành động/chuyển động, Camera movement, Ánh sáng, Mood, Text overlay nếu cần, Transition nếu cần.
+- Không tạo "Hình 2 / Trang 2", "Hình 3 / Trang 3", "Hình 4 / Trang 4".
+- Không chia theo 4 phần/cảnh riêng biệt. Nếu cần diễn tiến, mô tả liền mạch trong cùng một cảnh 0-8s.
+- Giữ nhận diện người/sản phẩm/không gian từ ảnh đầu vào; không biến thành nhân vật/sản phẩm khác.
+- Bắt buộc giữ nguyên nhân vật từ ảnh đầu vào: mặt, tóc, tuổi, dáng người, màu da, trang phục, màu trang phục, phụ kiện và chi tiết nhận diện. Không thay đổi trang phục trừ khi người dùng yêu cầu rõ.
 - Nếu ảnh là bản vẽ/mockup, chỉ dùng làm guide chuyển động và bố cục, không hiển thị nét vẽ trong final video trừ khi người dùng yêu cầu.
-- Quảng cáo chuyên nghiệp, family-safe, non-sexual, phù hợp nha khoa.
-- Cuối output có mục "Prompt video tổng hợp" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc giữ các tag <FIRST_FRAME> và <IMAGE_REF_N>.
+- Quảng cáo chuyên nghiệp, family-safe, non-sexual.
+- Cuối output có mục "### Prompt video tổng hợp:" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc bắt đầu từ <FIRST_FRAME> và giữ tổng thời lượng tối đa 8 giây.
 - Không dùng markdown table.`,
   }];
 
