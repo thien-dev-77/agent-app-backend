@@ -12,6 +12,7 @@ import { ChatbotTrainingModule } from './chatbot-training/chatbot-training.modul
 import { CrmModule } from './crm/crm.module';
 import { GalleryModule } from './gallery/gallery.module';
 import { ReferenceImagesModule } from './reference-images/reference-images.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ReferenceImagesModule } from './reference-images/reference-images.modul
     CrmModule,
     GalleryModule,
     ReferenceImagesModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

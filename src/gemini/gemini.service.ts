@@ -2,25 +2,34 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
+import { GoogleGenAI } from '@google/genai';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class GeminiService {
   private readonly logger = new Logger(GeminiService.name);
-  private readonly apiKey: string;
   private readonly supabaseUrl: string;
   private readonly supabaseAnonKey: string;
-  private readonly baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
-  constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('GEMINI_API_KEY') || '';
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly settingsService: SettingsService,
+  ) {
     this.supabaseUrl = this.configService.get<string>('SUPABASE_URL') || '';
     this.supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY') || '';
   }
 
+  private async getApiKey(): Promise<string> {
+    const apiKey = await this.settingsService.getGeminiApiKey();
+    if (!apiKey) {
+      throw new Error('Gemini API key is not configured');
+    }
+    return apiKey;
+  }
+
   /**
-   * Generate video using Gemini/Veo
-   * Supports multiple input images + text prompt → video
-   * Flow: submit → poll operation → download → upload Supabase
+   * Generate video using Google Gemini Omni interactions.
+   * Supports image(s) + storyboard prompt → base64 video → Supabase URL.
    */
   async generateVideo(
     prompt: string,
@@ -29,16 +38,17 @@ export class GeminiService {
     this.logger.log(`[Video] Starting generation`);
     this.logger.log(`[Video] Prompt: ${prompt.substring(0, 80)}...`);
     this.logger.log(`[Video] Input images: ${inputImageUrls?.length || 0}`);
+    const apiKey = await this.getApiKey();
+    const ai = new GoogleGenAI({ apiKey });
 
-    // Prepare image parts
-    const imageParts: any[] = [];
+    const input: any[] = [];
     if (inputImageUrls && inputImageUrls.length > 0) {
-      for (const url of inputImageUrls.slice(0, 6)) {
+      for (const url of inputImageUrls.slice(0, 4)) {
         try {
           const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
           const base64 = Buffer.from(response.data).toString('base64');
-          const mimeType = response.headers['content-type'] || 'image/png';
-          imageParts.push({ inlineData: { mimeType, data: base64 } });
+          const mimeType = response.headers['content-type'] || 'image/jpeg';
+          input.push({ type: 'image', data: base64, mime_type: mimeType });
           this.logger.log(`[Video] Added image: ${mimeType} (${Math.round(response.data.length / 1024)}KB)`);
         } catch (err) {
           this.logger.warn(`[Video] Skip image ${url.slice(0, 50)}: ${err.message}`);
@@ -46,174 +56,34 @@ export class GeminiService {
       }
     }
 
-    // Try Veo model first (long-running operation)
-    try {
-      return await this.generateWithVeo(prompt, imageParts);
-    } catch (veoErr) {
-      this.logger.warn(`[Video] Veo failed: ${veoErr.message}, trying Gemini Flash...`);
-    }
+    input.push({
+      type: 'text',
+      text: input.length > 0
+        ? `${prompt}\n\nUse the input image(s) as the visual source. Turn them into realistic footage. Use the image only as guidance for identity, subject, composition, and motion. Do not show any drawing/sketch/UI from the input in the final video unless explicitly requested.`
+        : prompt,
+    });
 
-    // Fallback: Gemini Flash generateContent
-    try {
-      return await this.generateWithGeminiFlash(prompt, imageParts);
-    } catch (flashErr) {
-      this.logger.error(`[Video] All methods failed: ${flashErr.message}`);
-      throw flashErr;
-    }
-  }
-
-  /**
-   * Method 1: Veo model (long-running operation with polling)
-   */
-  private async generateWithVeo(prompt: string, imageParts: any[]): Promise<{ videoUrl: string }> {
-    this.logger.log('[Video] Using Veo model...');
-
-    // Submit generation request
-    const submitUrl = `${this.baseUrl}/models/veo-002:predictLongRunning?key=${this.apiKey}`;
-
-    const instance: any = { prompt };
-    // Nếu có ảnh, truyền ảnh đầu tiên làm image input
-    if (imageParts.length > 0) {
-      instance.image = {
-        bytesBase64Encoded: imageParts[0].inlineData.data,
-        mimeType: imageParts[0].inlineData.mimeType,
-      };
-    }
-
-    const submitRes = await axios.post(submitUrl, {
-      instances: [instance],
-      parameters: {
-        durationSeconds: 5,
-        enhancePrompt: true,
+    this.logger.log('[Video] Using gemini-omni-flash-preview interactions...');
+    const interaction = await ai.interactions.create({
+      model: 'gemini-omni-flash-preview',
+      input,
+      generationConfig: {
+        videoConfig: {
+          task: inputImageUrls?.length ? 'image_to_video' : 'text_to_video',
+        },
       },
-    }, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 30000,
-    });
+    } as any);
 
-    const operationName = submitRes.data?.name;
-    if (!operationName) {
-      throw new Error('No operation name returned from Veo');
+    const outputVideo = (interaction as any).output_video;
+    if (!outputVideo?.data) {
+      throw new Error('No output video returned from Gemini Omni');
     }
 
-    this.logger.log(`[Video] Operation started: ${operationName}`);
+    const videoBuffer = Buffer.from(outputVideo.data, 'base64');
+    this.logger.log(`[Video] Generated: ${Math.round(videoBuffer.length / 1024)}KB`);
 
-    // Poll until done
-    const videoUri = await this.pollOperation(operationName);
-
-    // Download from Google → Upload to Supabase
-    const videoUrl = await this.downloadAndUploadVideo(videoUri);
+    const videoUrl = await this.uploadToSupabase(videoBuffer, 'video/mp4');
     return { videoUrl };
-  }
-
-  /**
-   * Poll operation until complete
-   */
-  private async pollOperation(operationName: string, maxPolls = 120): Promise<string> {
-    let done = false;
-    let videoUri = '';
-    let polls = 0;
-
-    while (!done && polls < maxPolls) {
-      this.logger.log(`[Video] Polling ${polls + 1}/${maxPolls}...`);
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10s
-
-      try {
-        const pollRes = await axios.get(
-          `${this.baseUrl}/${operationName}`,
-          {
-            params: { key: this.apiKey },
-            timeout: 30000,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-
-        const data = pollRes.data;
-        done = data?.done === true;
-
-        if (done) {
-          videoUri =
-            data?.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri ||
-            data?.response?.generatedVideos?.[0]?.video?.uri ||
-            '';
-          this.logger.log(`[Video] Done! URI: ${videoUri.slice(0, 80)}`);
-        }
-      } catch (pollErr) {
-        this.logger.warn(`[Video] Poll error (${polls + 1}): ${pollErr.message}`);
-      }
-
-      polls++;
-    }
-
-    if (!done) {
-      throw new Error(`Timeout after ${maxPolls * 10}s`);
-    }
-
-    if (!videoUri) {
-      throw new Error('No video URI in response');
-    }
-
-    return videoUri;
-  }
-
-  /**
-   * Method 2: Gemini Flash generateContent (for quick/short videos)
-   */
-  private async generateWithGeminiFlash(prompt: string, imageParts: any[]): Promise<{ videoUrl: string }> {
-    this.logger.log('[Video] Using Gemini Flash...');
-
-    const url = `${this.baseUrl}/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`;
-
-    const parts: any[] = [...imageParts, { text: `Generate a short video: ${prompt}` }];
-
-    const response = await axios.post(url, {
-      contents: [{ parts }],
-      generationConfig: { responseModalities: ['VIDEO', 'TEXT'] },
-    }, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 120000,
-    });
-
-    const candidates = response.data?.candidates || [];
-    for (const candidate of candidates) {
-      const responseParts = candidate?.content?.parts || [];
-      for (const part of responseParts) {
-        if (part.inlineData?.mimeType?.startsWith('video/')) {
-          // Video trả về inline → upload Supabase
-          const videoBuffer = Buffer.from(part.inlineData.data, 'base64');
-          const videoUrl = await this.uploadToSupabase(videoBuffer, 'video/mp4');
-          return { videoUrl };
-        }
-        if (part.fileData?.fileUri) {
-          const videoUrl = await this.downloadAndUploadVideo(part.fileData.fileUri);
-          return { videoUrl };
-        }
-      }
-    }
-
-    throw new Error('No video in Gemini Flash response');
-  }
-
-  /**
-   * Download video from Google URI → Upload to Supabase
-   */
-  private async downloadAndUploadVideo(googleUri: string): Promise<string> {
-    this.logger.log(`[Video] Downloading from Google: ${googleUri.slice(0, 80)}...`);
-
-    // Download with API key
-    const separator = googleUri.includes('?') ? '&' : '?';
-    const downloadUrl = `${googleUri}${separator}key=${this.apiKey}`;
-
-    const response = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
-      timeout: 120000,
-      headers: { Accept: 'video/*' },
-    });
-
-    const videoBuffer = Buffer.from(response.data);
-    this.logger.log(`[Video] Downloaded: ${Math.round(videoBuffer.length / 1024)}KB`);
-
-    return this.uploadToSupabase(videoBuffer, 'video/mp4');
   }
 
   /**

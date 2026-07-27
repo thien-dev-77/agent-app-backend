@@ -11,3 +11,4 @@ export { Customer } from './customer.entity';
 export { Appointment } from './appointment.entity';
 export { KnowledgeImage } from './knowledge-image.entity';
 export { ReferenceImage } from './reference-image.entity';
+export { AppSetting } from './app-setting.entity';

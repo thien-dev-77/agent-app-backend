@@ -4,21 +4,37 @@ import OpenAI, { toFile } from 'openai';
 import { Brand } from '../entities/brand.entity';
 import { Template } from '../entities/template.entity';
 import { v4 as uuidv4 } from 'uuid';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class OpenAIService {
   private readonly logger = new Logger(OpenAIService.name);
-  private readonly openai: OpenAI;
+  private openai: OpenAI | null = null;
+  private currentApiKey = '';
   private readonly supabaseUrl: string;
   private readonly supabaseAnonKey: string;
   private readonly maxReferenceImages = 10;
 
-  constructor(private readonly configService: ConfigService) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-    });
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly settingsService: SettingsService,
+  ) {
     this.supabaseUrl = this.configService.get<string>('SUPABASE_URL') || '';
     this.supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY') || '';
+  }
+
+  private async getClient(): Promise<OpenAI> {
+    const apiKey = await this.settingsService.getOpenAIApiKey();
+    if (!apiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
+
+    if (!this.openai || this.currentApiKey !== apiKey) {
+      this.openai = new OpenAI({ apiKey });
+      this.currentApiKey = apiKey;
+    }
+
+    return this.openai;
   }
 
   /**
@@ -101,7 +117,8 @@ export class OpenAIService {
    * Generate with text only (no reference images)
    */
   private async generateTextOnly(prompt: string, size: string): Promise<string> {
-    const response = await this.openai.images.generate({
+    const openai = await this.getClient();
+    const response = await openai.images.generate({
       model: 'gpt-image-2',
       prompt: this.appendImageSafetyGuard(prompt),
       n: 1,
@@ -181,7 +198,8 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
     }
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const openai = await this.getClient();
+      const response = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [{ role: 'user', content: userContent }],
         temperature: 0.3,
@@ -308,7 +326,8 @@ Keep all other design elements, composition, and visual content unchanged.`;
 
     const fullPrompt = this.appendImageSafetyGuard(`${finalPrompt}\n\n[Image roles:\n${imageInstruction}]`);
 
-    const response = await this.openai.images.edit({
+    const openai = await this.getClient();
+    const response = await openai.images.edit({
       model: 'gpt-image-2',
       image: imageFiles,
       prompt: fullPrompt,
@@ -394,7 +413,8 @@ Return ONLY valid JSON, no explanation, no markdown.`;
         userContent.push({ type: 'image_url', image_url: { url, detail: 'low' } });
       }
 
-      const analyzeResponse = await this.openai.chat.completions.create({
+      const openai = await this.getClient();
+      const analyzeResponse = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: userContent }],
         temperature: 0.2,
@@ -427,7 +447,8 @@ Mood: ${params.mood || 'Professional'}
 Generate JSON with: layout, background, subject, typography, colors, CTA, decorations, negative.
 Return ONLY valid JSON.`;
 
-      const specResponse = await this.openai.chat.completions.create({
+      const openai = await this.getClient();
+      const specResponse = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: specPrompt }],
         temperature: 0.4,
@@ -489,7 +510,8 @@ Bắt buộc trong prompt đầu ra phải có:
     userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } });
   }
 
-  const response = await this.openai.chat.completions.create({
+  const openai = await this.getClient();
+  const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content: userContent }],
     temperature: 0.2,
@@ -557,7 +579,8 @@ Rules:
 - If unsure, still return best estimates.
 - No markdown, no explanation.`;
 
-  const response = await this.openai.chat.completions.create({
+  const openai = await this.getClient();
+  const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [{
       role: 'user',
@@ -701,7 +724,8 @@ Yêu cầu:
     userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } });
   }
 
-  const response = await this.openai.chat.completions.create({
+  const openai = await this.getClient();
+  const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content: userContent }],
     temperature: 0.1,
@@ -717,6 +741,53 @@ Yêu cầu:
     textItems: [],
     style: {},
   });
+}
+
+async generateVideoStoryboard(params: {
+  script: string;
+  imageUrls?: string[];
+}): Promise<string> {
+  const script = params.script?.trim();
+  if (!script) {
+    throw new Error('script is required');
+  }
+
+  const userContent: any[] = [{
+    type: 'text',
+    text: `Bạn là đạo diễn video quảng cáo nha khoa và prompt engineer cho Google Gemini/Omni video.
+
+Tạo storyboard ngắn để đưa thẳng vào model tạo video từ ảnh đầu vào.
+
+Kịch bản người dùng:
+${script}
+
+Yêu cầu output:
+- Viết bằng tiếng Việt, rõ ràng, có thể dùng làm prompt video.
+- Chia 4-6 cảnh/shot trong tổng thời lượng khoảng 5-8 giây.
+- Mỗi shot có: thời lượng, hành động/chuyển động chủ thể, camera movement, ánh sáng, mood, text overlay nếu cần.
+- Nếu có ảnh đầu vào, giữ nhận diện người/sản phẩm/không gian từ ảnh; không biến thành nhân vật/sản phẩm khác.
+- Quảng cáo chuyên nghiệp, family-safe, non-sexual, phù hợp nha khoa.
+- Cuối output có mục "Prompt video tổng hợp" là một prompt liền mạch để node Google Omni dùng render.
+- Không dùng markdown table.`,
+  }];
+
+  for (const url of (params.imageUrls || []).filter(Boolean).slice(0, 4)) {
+    userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } });
+  }
+
+  const openai = await this.getClient();
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: userContent }],
+    temperature: 0.35,
+    max_tokens: 1300,
+  });
+
+  const storyboard = response.choices[0]?.message?.content?.trim();
+  if (!storyboard) {
+    throw new Error('No storyboard returned');
+  }
+  return storyboard;
 }
 
 private parseJsonObject<T>(text: string, fallback: T): T {
@@ -863,7 +934,8 @@ private buildModularPrompt(spec: any, params: {
     this.logger.log('Calling ChatGPT for chatbot training...');
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const openai = await this.getClient();
+      const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },

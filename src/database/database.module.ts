@@ -14,6 +14,7 @@ import { Customer } from '../entities/customer.entity';
 import { Appointment } from '../entities/appointment.entity';
 import { KnowledgeImage } from '../entities/knowledge-image.entity';
 import { ReferenceImage } from '../entities/reference-image.entity';
+import { AppSetting } from '../entities/app-setting.entity';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ReferenceImage } from '../entities/reference-image.entity';
             Appointment,
             KnowledgeImage,
             ReferenceImage,
+            AppSetting,
           ],
           synchronize: true,
           ssl: {

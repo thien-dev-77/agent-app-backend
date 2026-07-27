@@ -88,4 +88,16 @@ export class ImageGenerationController {
       logoUrl: body.logo_url,
     });
   }
+
+  @Post('generate-video-storyboard')
+  async generateVideoStoryboard(@Body() body: {
+    script: string;
+    image_urls?: string[];
+  }): Promise<{ storyboard: string }> {
+    const storyboard = await this.openaiService.generateVideoStoryboard({
+      script: body.script,
+      imageUrls: body.image_urls,
+    });
+    return { storyboard };
+  }
 }
