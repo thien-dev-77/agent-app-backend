@@ -48,7 +48,7 @@ export class GeminiService {
 
     const input: any[] = [];
     if (inputImageUrls && inputImageUrls.length > 0) {
-      for (const url of inputImageUrls.slice(0, 3)) {
+      for (const url of inputImageUrls.slice(0, 4)) {
         try {
           const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
           const base64 = Buffer.from(response.data).toString('base64');
@@ -62,20 +62,21 @@ export class GeminiService {
     }
 
     const imageCount = input.length;
+    const referenceOnlyPrompt = prompt
+      .replace(/<FIRST_FRAME>/g, '<__FIRST_FRAME_REF__>')
+      .replace(/<IMAGE_REF_(\d+)>/g, (_, index) => `<IMAGE_REF_${Number(index) + 1}>`)
+      .replace(/<__FIRST_FRAME_REF__>/g, '<IMAGE_REF_0>');
     const imageTags = imageCount > 0
       ? [
-          `[# Sources <FIRST_FRAME>@Image1]`,
-          imageCount > 1
-            ? `[# References ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 2}`).join(' ')}]`
-            : '',
+          `[# References ${Array.from({ length: imageCount }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 1}`).join(' ')}]`,
           '',
-          `Image tag rules: Use Image1 as <FIRST_FRAME>, the starting frame. Use the remaining image(s) as references, not literal initial frames. Reference tags start at <IMAGE_REF_0> for Image2.`,
+          `Image tag rules: Use all images only as references, not literal initial frames. Do not show any storyboard/reference still as the first frame. Reference tags start at <IMAGE_REF_0> for Image1.`,
         ].filter(Boolean).join('\n')
       : '';
 
     const videoPrompt = [
       imageTags,
-      prompt,
+      imageCount > 0 ? referenceOnlyPrompt : prompt,
       options?.durationSeconds ? `Target duration: ${options.durationSeconds} seconds. Pace the storybook shots to fit this exact duration as closely as the model allows.` : '',
       options?.voiceStyle ? `Audio/voice: ${options.voiceStyle}. Vietnamese language voiceover if narration is present. Keep speech natural, clear, and suitable for a professional dental advertisement.` : '',
     ].filter(Boolean).join('\n\n');
@@ -83,7 +84,7 @@ export class GeminiService {
     input.push({
       type: 'text',
       text: input.length > 0
-        ? `${videoPrompt}\n\nUse Image1 as the starting frame when <FIRST_FRAME> is declared. Use the remaining tagged image(s) as references for video generation; they should not be used as literal initial frames. Turn the referenced subjects, products, composition, and motion guidance into realistic footage. Do not show any drawing/sketch/UI from the input in the final video unless explicitly requested.`
+        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. They should guide subject identity, wardrobe, props, composition, style, and motion, but they should not be used as literal first frames or still images in the final video. Turn the referenced subjects, products, composition, and motion guidance into realistic footage. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested.`
         : videoPrompt,
     });
 
