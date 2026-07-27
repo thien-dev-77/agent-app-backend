@@ -78,13 +78,13 @@ export class GeminiService {
       imageTags,
       imageCount > 0 ? referenceOnlyPrompt : prompt,
       options?.durationSeconds ? `Target duration: ${options.durationSeconds} seconds. Pace the storybook shots to fit this exact duration as closely as the model allows.` : '',
-      options?.voiceStyle ? `Audio/voice: ${options.voiceStyle}. Vietnamese language voiceover if narration is present. Keep speech natural, clear, and suitable for a professional dental advertisement.` : '',
+      options?.voiceStyle ? `Audio/voice: ${options.voiceStyle}. Vietnamese language voiceover if narration is present. Keep speech natural, clear, and suitable for a professional TVC commercial.` : '',
     ].filter(Boolean).join('\n\n');
 
     input.push({
       type: 'text',
       text: input.length > 0
-        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. If <IMAGE_REF_0> contains a real person, prioritize it above all other images for facial identity and wardrobe consistency. Keep the same face, facial structure, age, hairstyle, hair color, skin tone, body shape, outfit, outfit color, accessories, and distinctive details throughout the whole video. Use later reference images for motion, camera, scene continuity, composition, and styling only; they must not change the person's identity or clothing. The references should not be used as literal first frames or still images in the final video. Turn the referenced subjects, products, composition, and motion guidance into realistic footage. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested.`
+        ? `${videoPrompt}\n\nCreate a polished TVC commercial. Use the tagged images only as visual references for video generation. The input may contain a real person, a product, or both. If <IMAGE_REF_0> contains a real person, prioritize it above all other images for facial identity and wardrobe consistency. Keep the same face, facial structure, age, hairstyle, hair color, skin tone, body shape, outfit, outfit color, accessories, and distinctive details throughout the whole video. If any reference contains a product, preserve the exact product shape, packaging, label, logo, material, color, scale, and key details. Use later reference images for motion, camera, scene continuity, composition, product hero moments, brand mood, and styling only; they must not change the person's identity, clothing, or product identity. The references should not be used as literal first frames or still images in the final video. Turn the referenced subjects, products, composition, and motion guidance into realistic TVC footage with a clear hook, benefit moment, brand/product emphasis, and short CTA. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested.`
         : videoPrompt,
     });
 

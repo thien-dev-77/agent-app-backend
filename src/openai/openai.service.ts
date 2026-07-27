@@ -752,15 +752,16 @@ async generateVideoStoryboard(params: {
     throw new Error('script is required');
   }
 
-  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 3);
+  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 4);
   const imageCount = imageUrls.length;
 
   const userContent: any[] = [{
     type: 'text',
-    text: `Bạn là đạo diễn video quảng cáo và prompt engineer cho Google Gemini/Omni video.
+    text: `Bạn là đạo diễn TVC quảng cáo và prompt engineer cho Google Gemini/Omni video.
 
-Tạo một kịch bản video ngắn tối đa 10 giây để đưa thẳng vào model tạo video.
+Tạo một kịch bản video TVC ngắn tối đa 10 giây để đưa thẳng vào model tạo video.
 Không chia kịch bản thành nhiều phần theo từng ảnh. Không bắt buộc tạo 4 cảnh/4 trang.
+Input có thể là ảnh sản phẩm, nhân vật/người mẫu, hoặc cả sản phẩm và nhân vật. Kịch bản phải ưu tiên quảng cáo sản phẩm/dịch vụ theo kiểu TVC: hook mở đầu, visual benefit, product/brand moment, CTA ngắn.
 
 Kịch bản người dùng:
 ${script}
@@ -781,10 +782,12 @@ Yêu cầu output:
 - Không chia theo 4 phần/cảnh riêng biệt. Nếu cần diễn tiến, mô tả liền mạch trong cùng một cảnh 0-10s.
 - Giữ nhận diện người/sản phẩm/không gian từ ảnh đầu vào; không biến thành nhân vật/sản phẩm khác.
 - Bắt buộc giữ nguyên nhân vật từ ảnh đầu vào: mặt, tóc, tuổi, dáng người, màu da, trang phục, màu trang phục, phụ kiện và chi tiết nhận diện. Không thay đổi trang phục trừ khi người dùng yêu cầu rõ.
+- Nếu ảnh đầu vào là sản phẩm, bắt buộc giữ chính xác shape, material, label, logo, packaging, màu sắc, tỷ lệ, bề mặt và chi tiết nhận diện của sản phẩm. Không thay thành sản phẩm khác.
+- Nếu ảnh có cả sản phẩm và nhân vật, TVC phải cho thấy mối quan hệ tự nhiên giữa nhân vật và sản phẩm/dịch vụ, nhưng vẫn giữ đúng identity của cả hai.
 - Nếu ảnh là bản vẽ/mockup, chỉ dùng làm guide chuyển động và bố cục, không hiển thị nét vẽ trong final video trừ khi người dùng yêu cầu.
-- Quảng cáo chuyên nghiệp, family-safe, non-sexual.
+- Phong cách TVC chuyên nghiệp, family-safe, non-sexual, có cảm giác thương mại rõ ràng.
 - Cuối output có mục "### Prompt video tổng hợp:" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc bắt đầu từ <FIRST_FRAME> và giữ tổng thời lượng tối đa 8 giây.
-- Nếu có nhiều ảnh đầu vào, "Prompt video tổng hợp" bắt buộc chứa đủ tất cả tag theo thứ tự: <FIRST_FRAME>${imageCount > 1 ? `, ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>`).join(', ')}` : ''}. Dùng các tag này trong cùng một prompt liền mạch, ví dụ: "Starting from <FIRST_FRAME>, keep the same main character and use <IMAGE_REF_0>, <IMAGE_REF_1> as visual references for consistent wardrobe, subject identity, props, style, and scene continuity..."
+- Nếu có nhiều ảnh đầu vào, "Prompt video tổng hợp" bắt buộc chứa đủ tất cả tag theo thứ tự: <FIRST_FRAME>${imageCount > 1 ? `, ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>`).join(', ')}` : ''}. Dùng các tag này trong cùng một prompt liền mạch, ví dụ: "Starting from <FIRST_FRAME>, create a polished TVC commercial. Keep the same real person/product identity and use <IMAGE_REF_0>, <IMAGE_REF_1> as visual references for consistent wardrobe, product details, props, camera motion, scene continuity, brand mood, and CTA..."
 - Không được bỏ sót tag ảnh tham chiếu nào trong "Prompt video tổng hợp".
 - Không dùng markdown table.`,
   }];
