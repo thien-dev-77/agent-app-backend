@@ -26,4 +26,8 @@ export class CreateVideoGenerationDto {
   @IsOptional()
   @IsString()
   voice_style?: string;
+
+  @IsOptional()
+  @IsIn(['tvc', 'intro'])
+  video_style?: 'tvc' | 'intro';
 }

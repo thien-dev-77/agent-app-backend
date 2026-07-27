@@ -39,6 +39,7 @@ export class VideoGenerationService {
         aspect_ratio: dto.aspect_ratio || '16:9',
         duration_seconds: dto.duration_seconds || null,
         voice_style: dto.voice_style || '',
+        video_style: dto.video_style || 'tvc',
       },
     });
 
@@ -50,6 +51,7 @@ export class VideoGenerationService {
       aspectRatio: dto.aspect_ratio || '16:9',
       durationSeconds: dto.duration_seconds,
       voiceStyle: dto.voice_style,
+      videoStyle: dto.video_style || 'tvc',
     });
 
     return saved;
@@ -63,6 +65,7 @@ export class VideoGenerationService {
       aspectRatio?: '16:9' | '9:16';
       durationSeconds?: number;
       voiceStyle?: string;
+      videoStyle?: 'tvc' | 'intro';
     },
   ): Promise<void> {
     try {
