@@ -752,7 +752,7 @@ async generateVideoStoryboard(params: {
     throw new Error('script is required');
   }
 
-  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 4);
+  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 3);
   const imageCount = imageUrls.length;
 
   const userContent: any[] = [{
@@ -784,7 +784,7 @@ Yêu cầu output:
 - Nếu ảnh là bản vẽ/mockup, chỉ dùng làm guide chuyển động và bố cục, không hiển thị nét vẽ trong final video trừ khi người dùng yêu cầu.
 - Quảng cáo chuyên nghiệp, family-safe, non-sexual.
 - Cuối output có mục "### Prompt video tổng hợp:" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc bắt đầu từ <FIRST_FRAME> và giữ tổng thời lượng tối đa 8 giây.
-- Nếu có nhiều ảnh đầu vào, "Prompt video tổng hợp" bắt buộc chứa đủ tất cả tag theo thứ tự: <FIRST_FRAME>${imageCount > 1 ? `, ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>`).join(', ')}` : ''}. Dùng các tag này trong cùng một prompt liền mạch, ví dụ: "Starting from <FIRST_FRAME>, keep the same main character and use <IMAGE_REF_0>, <IMAGE_REF_1>, <IMAGE_REF_2> as visual references for consistent wardrobe, subject identity, props, style, and scene continuity..."
+- Nếu có nhiều ảnh đầu vào, "Prompt video tổng hợp" bắt buộc chứa đủ tất cả tag theo thứ tự: <FIRST_FRAME>${imageCount > 1 ? `, ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>`).join(', ')}` : ''}. Dùng các tag này trong cùng một prompt liền mạch, ví dụ: "Starting from <FIRST_FRAME>, keep the same main character and use <IMAGE_REF_0>, <IMAGE_REF_1> as visual references for consistent wardrobe, subject identity, props, style, and scene continuity..."
 - Không được bỏ sót tag ảnh tham chiếu nào trong "Prompt video tổng hợp".
 - Không dùng markdown table.`,
   }];
