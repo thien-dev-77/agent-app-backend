@@ -759,7 +759,7 @@ async generateVideoStoryboard(params: {
     type: 'text',
     text: `Bạn là đạo diễn video quảng cáo và prompt engineer cho Google Gemini/Omni video.
 
-Tạo một kịch bản video ngắn tối đa 8 giây để đưa thẳng vào model tạo video.
+Tạo một kịch bản video ngắn tối đa 10 giây để đưa thẳng vào model tạo video.
 Không chia kịch bản thành nhiều phần theo từng ảnh. Không bắt buộc tạo 4 cảnh/4 trang.
 
 Kịch bản người dùng:
@@ -774,16 +774,16 @@ ${imageCount > 1 ? Array.from({ length: imageCount - 1 }, (_, index) => `- Image
 
 Yêu cầu output:
 - Viết bằng tiếng Việt, rõ ràng, có thể dùng làm prompt video.
-- Tổng thời lượng không quá 8 giây.
+- Tổng thời lượng không quá 10 giây.
 - Chỉ tạo một mục duy nhất: "### Hình 1 / Trang 1: <FIRST_FRAME>".
-- Trong mục này phải có: Thời gian [0-8s] hoặc ngắn hơn, Mô tả, Hành động/chuyển động, Camera movement, Ánh sáng, Mood, Text overlay nếu cần, Transition nếu cần.
+- Trong mục này phải có: Thời gian [0-10s] hoặc ngắn hơn, Mô tả, Hành động/chuyển động, Camera movement, Ánh sáng, Mood, Text overlay nếu cần, Transition nếu cần.
 - Không tạo "Hình 2 / Trang 2", "Hình 3 / Trang 3", "Hình 4 / Trang 4".
-- Không chia theo 4 phần/cảnh riêng biệt. Nếu cần diễn tiến, mô tả liền mạch trong cùng một cảnh 0-8s.
+- Không chia theo 4 phần/cảnh riêng biệt. Nếu cần diễn tiến, mô tả liền mạch trong cùng một cảnh 0-10s.
 - Giữ nhận diện người/sản phẩm/không gian từ ảnh đầu vào; không biến thành nhân vật/sản phẩm khác.
 - Bắt buộc giữ nguyên nhân vật từ ảnh đầu vào: mặt, tóc, tuổi, dáng người, màu da, trang phục, màu trang phục, phụ kiện và chi tiết nhận diện. Không thay đổi trang phục trừ khi người dùng yêu cầu rõ.
 - Nếu ảnh là bản vẽ/mockup, chỉ dùng làm guide chuyển động và bố cục, không hiển thị nét vẽ trong final video trừ khi người dùng yêu cầu.
 - Quảng cáo chuyên nghiệp, family-safe, non-sexual.
-- Cuối output có mục "### Prompt video tổng hợp:" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc bắt đầu từ <FIRST_FRAME> và giữ tổng thời lượng tối đa 8 giây.
+- Cuối output có mục "### Prompt video tổng hợp:" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, bắt buộc bắt đầu từ <FIRST_FRAME> và giữ tổng thời lượng tối đa 10 giây.
 - Nếu có nhiều ảnh đầu vào, "Prompt video tổng hợp" bắt buộc chứa đủ tất cả tag theo thứ tự: <FIRST_FRAME>${imageCount > 1 ? `, ${Array.from({ length: imageCount - 1 }, (_, index) => `<IMAGE_REF_${index}>`).join(', ')}` : ''}. Dùng các tag này trong cùng một prompt liền mạch, ví dụ: "Starting from <FIRST_FRAME>, keep the same main character and use <IMAGE_REF_0>, <IMAGE_REF_1> as visual references for consistent wardrobe, subject identity, props, style, and scene continuity..."
 - Không được bỏ sót tag ảnh tham chiếu nào trong "Prompt video tổng hợp".
 - Không dùng markdown table.`,
