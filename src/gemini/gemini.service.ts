@@ -95,11 +95,6 @@ export class GeminiService {
         type: 'video',
         aspect_ratio: options?.aspectRatio || '16:9',
       },
-      generation_config: {
-        video_config: {
-          task: inputImageUrls?.length ? 'image_to_video' : 'text_to_video',
-        },
-      },
     } as any);
 
     const outputVideo = (interaction as any).output_video;
