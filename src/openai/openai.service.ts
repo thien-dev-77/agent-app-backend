@@ -752,26 +752,33 @@ async generateVideoStoryboard(params: {
     throw new Error('script is required');
   }
 
+  const imageUrls = (params.imageUrls || []).filter(Boolean).slice(0, 6);
+  const imageCount = imageUrls.length;
+
   const userContent: any[] = [{
     type: 'text',
     text: `Bạn là đạo diễn video quảng cáo nha khoa và prompt engineer cho Google Gemini/Omni video.
 
-Tạo storyboard ngắn để đưa thẳng vào model tạo video từ ảnh đầu vào.
+Tạo STORYBOOK/STORYBOARD theo từng ảnh đầu vào để đưa thẳng vào model tạo video.
 
 Kịch bản người dùng:
 ${script}
 
+Số ảnh đầu vào: ${imageCount}
+
 Yêu cầu output:
 - Viết bằng tiếng Việt, rõ ràng, có thể dùng làm prompt video.
-- Chia 4-6 cảnh/shot trong tổng thời lượng khoảng 5-8 giây.
-- Mỗi shot có: thời lượng, hành động/chuyển động chủ thể, camera movement, ánh sáng, mood, text overlay nếu cần.
-- Nếu có ảnh đầu vào, giữ nhận diện người/sản phẩm/không gian từ ảnh; không biến thành nhân vật/sản phẩm khác.
+- Nếu có nhiều ảnh đầu vào, bắt buộc tạo một mục riêng cho từng ảnh theo đúng thứ tự: "Hình 1 / Trang 1", "Hình 2 / Trang 2", ...
+- Mỗi hình/trang phải có: mô tả vai trò ảnh đó trong câu chuyện, thời lượng, hành động/chuyển động chủ thể, camera movement, ánh sáng, mood, text overlay nếu cần, transition sang hình kế tiếp.
+- Nếu chỉ có 1 ảnh, tạo 4-6 shot nhỏ dựa trên ảnh đó.
+- Giữ nhận diện người/sản phẩm/không gian từ từng ảnh; không biến thành nhân vật/sản phẩm khác.
+- Nếu ảnh là bản vẽ/mockup, chỉ dùng làm guide chuyển động và bố cục, không hiển thị nét vẽ trong final video trừ khi người dùng yêu cầu.
 - Quảng cáo chuyên nghiệp, family-safe, non-sexual, phù hợp nha khoa.
-- Cuối output có mục "Prompt video tổng hợp" là một prompt liền mạch để node Google Omni dùng render.
+- Cuối output có mục "Prompt video tổng hợp" là một prompt liền mạch bằng tiếng Anh hoặc song ngữ để node Google Omni dùng render, nhắc rõ dùng từng input image theo thứ tự.
 - Không dùng markdown table.`,
   }];
 
-  for (const url of (params.imageUrls || []).filter(Boolean).slice(0, 4)) {
+  for (const url of imageUrls) {
     userContent.push({ type: 'image_url', image_url: { url, detail: 'high' } });
   }
 
