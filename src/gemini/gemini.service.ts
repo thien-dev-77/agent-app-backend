@@ -70,7 +70,7 @@ export class GeminiService {
       ? [
           `[# References ${Array.from({ length: imageCount }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 1}`).join(' ')}]`,
           '',
-          `Image tag rules: Use all images only as references, not literal initial frames. Do not show any storyboard/reference still as the first frame. Reference tags start at <IMAGE_REF_0> for Image1.`,
+          `Image tag rules: Use all images only as references, not literal initial frames. Do not show any storyboard/reference still as the first frame. Reference tags start at <IMAGE_REF_0> for Image1. Treat <IMAGE_REF_0> as the primary identity reference when it contains a real person: preserve the exact face, facial proportions, age, hairstyle, hair color, skin tone, body shape, clothing, clothing color, accessories, and distinctive details. Other reference images should guide motion, camera, scene continuity, and composition without overriding the identity from <IMAGE_REF_0>.`,
         ].filter(Boolean).join('\n')
       : '';
 
@@ -84,7 +84,7 @@ export class GeminiService {
     input.push({
       type: 'text',
       text: input.length > 0
-        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. They should guide subject identity, wardrobe, props, composition, style, and motion, but they should not be used as literal first frames or still images in the final video. Turn the referenced subjects, products, composition, and motion guidance into realistic footage. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested.`
+        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. If <IMAGE_REF_0> contains a real person, prioritize it above all other images for facial identity and wardrobe consistency. Keep the same face, facial structure, age, hairstyle, hair color, skin tone, body shape, outfit, outfit color, accessories, and distinctive details throughout the whole video. Use later reference images for motion, camera, scene continuity, composition, and styling only; they must not change the person's identity or clothing. The references should not be used as literal first frames or still images in the final video. Turn the referenced subjects, products, composition, and motion guidance into realistic footage. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested.`
         : videoPrompt,
     });
 
