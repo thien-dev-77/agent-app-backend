@@ -259,7 +259,9 @@ export class ChatbotTrainingService {
 
     const backendUrl = this.configService.get<string>('BACKEND_PUBLIC_URL');
     if (backendUrl) {
-      return `${backendUrl.replace(/\/$/, '')}/api/chatbot-training/facebook/oauth/callback`;
+      const baseUrl = backendUrl.replace(/\/$/, '');
+      const apiBaseUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+      return `${apiBaseUrl}/chatbot-training/facebook/oauth/callback`;
     }
 
     if (request) {
