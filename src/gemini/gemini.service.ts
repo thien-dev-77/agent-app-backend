@@ -48,8 +48,12 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey });
 
     const input: any[] = [];
-    if (inputImageUrls && inputImageUrls.length > 0) {
-      for (const url of inputImageUrls.slice(0, 4)) {
+    const videoInputImageUrls = (inputImageUrls || []).filter(Boolean).slice(0, 1);
+    if ((inputImageUrls?.length || 0) > videoInputImageUrls.length) {
+      this.logger.warn(`[Video] Using only the first source image for Gemini Omni image_to_video stability`);
+    }
+    if (videoInputImageUrls.length > 0) {
+      for (const url of videoInputImageUrls) {
         try {
           const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
           const base64 = Buffer.from(response.data).toString('base64');
@@ -63,7 +67,8 @@ export class GeminiService {
     }
 
     const imageCount = input.length;
-    const referenceOnlyPrompt = prompt
+    const compactPrompt = this.extractVideoPrompt(prompt);
+    const referenceOnlyPrompt = compactPrompt
       .replace(/<FIRST_FRAME>/g, '<__FIRST_FRAME_REF__>')
       .replace(/<IMAGE_REF_(\d+)>/g, (_, index) => `<IMAGE_REF_${Number(index) + 1}>`)
       .replace(/<__FIRST_FRAME_REF__>/g, '<IMAGE_REF_0>');
@@ -90,7 +95,7 @@ export class GeminiService {
 
     const videoPrompt = [
       imageTags,
-      imageCount > 0 ? referenceOnlyPrompt : prompt,
+      imageCount > 0 ? referenceOnlyPrompt : compactPrompt,
       styleInstruction,
       imageToVideoMotionInstruction,
       options?.durationSeconds ? `Target duration: ${options.durationSeconds} seconds. Pace the storybook shots to fit this exact duration as closely as the model allows.` : '',
@@ -108,6 +113,11 @@ export class GeminiService {
     const interaction = await ai.interactions.create({
       model: 'gemini-omni-flash-preview',
       input,
+      generationConfig: {
+        videoConfig: {
+          task: imageCount > 0 ? 'image_to_video' : 'text_to_video',
+        },
+      },
       response_format: {
         type: 'video',
         aspect_ratio: options?.aspectRatio || '16:9',
@@ -124,6 +134,24 @@ export class GeminiService {
 
     const videoUrl = await this.uploadToSupabase(videoBuffer, 'video/mp4');
     return { videoUrl };
+  }
+
+  private extractVideoPrompt(prompt: string): string {
+    const cleaned = (prompt || '').trim();
+    const marker = '### Prompt video tổng hợp:';
+    const markerIndex = cleaned.toLowerCase().indexOf(marker.toLowerCase());
+    const promptText = markerIndex >= 0
+      ? cleaned.slice(markerIndex + marker.length).trim()
+      : cleaned;
+
+    return promptText
+      .replace(/real person/gi, 'human subject')
+      .replace(/person identity/gi, 'subject continuity')
+      .replace(/facial identity/gi, 'subject continuity')
+      .replace(/exact face/gi, 'source subject')
+      .replace(/face match/gi, 'subject continuity')
+      .replace(/likeness/gi, 'visual continuity')
+      .slice(0, 2500);
   }
 
   /**
