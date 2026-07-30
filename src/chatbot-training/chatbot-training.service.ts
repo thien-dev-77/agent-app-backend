@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios from 'axios';
+import { ConfigService } from '@nestjs/config';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { Request } from 'express';
 import { TrainingCategory } from '../entities/training-category.entity';
 import { TrainingPhrase } from '../entities/training-phrase.entity';
 import { TrainingScenario } from '../entities/training-scenario.entity';
@@ -38,6 +41,7 @@ export class ChatbotTrainingService {
     @InjectRepository(KnowledgeImage)
     private readonly imageRepo: Repository<KnowledgeImage>,
     private readonly openaiService: OpenAIService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ==================== KNOWLEDGE IMAGES ====================
@@ -125,6 +129,111 @@ export class ChatbotTrainingService {
     return { status: 'ok' };
   }
 
+  getFacebookOAuthUrl(botId: string, request: Request, returnUrl?: string) {
+    const appId = this.configService.get<string>('FACEBOOK_APP_ID');
+    if (!appId) {
+      throw new BadRequestException('FACEBOOK_APP_ID is not configured');
+    }
+
+    const redirectUri = this.getFacebookRedirectUri(request);
+    const state = this.signFacebookState({
+      botId,
+      nonce: randomBytes(12).toString('hex'),
+      returnUrl: this.getSafeReturnUrl(returnUrl),
+    });
+    const graphVersion = this.getFacebookGraphVersion();
+    const url = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+    url.searchParams.set('client_id', appId);
+    url.searchParams.set('redirect_uri', redirectUri);
+    url.searchParams.set('state', state);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope', [
+      'pages_show_list',
+      'pages_manage_metadata',
+      'pages_messaging',
+      'pages_read_engagement',
+    ].join(','));
+
+    return { url: url.toString() };
+  }
+
+  async handleFacebookOAuthCallback(code: string, state: string) {
+    if (!code || !state) {
+      throw new BadRequestException('Missing Facebook OAuth code or state');
+    }
+
+    const appId = this.configService.get<string>('FACEBOOK_APP_ID');
+    const appSecret = this.configService.get<string>('FACEBOOK_APP_SECRET');
+    if (!appId || !appSecret) {
+      throw new BadRequestException('FACEBOOK_APP_ID or FACEBOOK_APP_SECRET is not configured');
+    }
+
+    const statePayload = this.verifyFacebookState(state);
+    const bot = await this.findOneChatbot(statePayload.botId);
+    const redirectUri = this.getFacebookRedirectUri();
+    const graphVersion = this.getFacebookGraphVersion();
+
+    const tokenResponse = await axios.get(`https://graph.facebook.com/${graphVersion}/oauth/access_token`, {
+      params: {
+        client_id: appId,
+        client_secret: appSecret,
+        redirect_uri: redirectUri,
+        code,
+      },
+      timeout: 30000,
+    });
+    const userAccessToken = tokenResponse.data?.access_token;
+    if (!userAccessToken) {
+      throw new BadRequestException('Facebook did not return a user access token');
+    }
+
+    const pagesResponse = await axios.get(`https://graph.facebook.com/${graphVersion}/me/accounts`, {
+      params: {
+        fields: 'id,name,access_token,tasks',
+        access_token: userAccessToken,
+      },
+      timeout: 30000,
+    });
+    const pages = Array.isArray(pagesResponse.data?.data) ? pagesResponse.data.data : [];
+    const page = pages.find((item) => item?.access_token);
+    if (!page) {
+      throw new BadRequestException('No manageable Facebook page with access token was returned');
+    }
+
+    await axios.post(
+      `https://graph.facebook.com/${graphVersion}/${page.id}/subscribed_apps`,
+      null,
+      {
+        params: {
+          subscribed_fields: 'messages,messaging_postbacks',
+          access_token: page.access_token,
+        },
+        timeout: 30000,
+      },
+    );
+
+    bot.settings = {
+      ...(bot.settings || {}),
+      facebook: {
+        ...(bot.settings?.facebook || {}),
+        page_id: page.id,
+        page_name: page.name || '',
+        page_access_token: page.access_token,
+        verify_token: bot.settings?.facebook?.verify_token || randomBytes(16).toString('hex'),
+        app_secret: appSecret,
+        connected_at: new Date().toISOString(),
+        status: 'connected',
+      },
+    };
+    await this.chatbotRepo.save(bot);
+
+    const redirectUrl = new URL(statePayload.returnUrl || this.getFrontendUrl());
+    redirectUrl.searchParams.set('bot', statePayload.botId);
+    redirectUrl.searchParams.set('facebook', 'connected');
+    redirectUrl.searchParams.set('page', page.name || page.id);
+    return redirectUrl.toString();
+  }
+
   private async sendFacebookMessage(pageAccessToken: string, recipientId: string, text: string) {
     await axios.post(
       'https://graph.facebook.com/me/messages',
@@ -138,6 +247,78 @@ export class ChatbotTrainingService {
         timeout: 30000,
       },
     );
+  }
+
+  private getFacebookGraphVersion() {
+    return this.configService.get<string>('FACEBOOK_GRAPH_VERSION') || 'v22.0';
+  }
+
+  private getFacebookRedirectUri(request?: Request) {
+    const configured = this.configService.get<string>('FACEBOOK_OAUTH_REDIRECT_URI');
+    if (configured) return configured;
+
+    const backendUrl = this.configService.get<string>('BACKEND_PUBLIC_URL');
+    if (backendUrl) {
+      return `${backendUrl.replace(/\/$/, '')}/api/chatbot-training/facebook/oauth/callback`;
+    }
+
+    if (request) {
+      const proto = (request.headers['x-forwarded-proto'] as string) || request.protocol || 'http';
+      const host = request.headers['x-forwarded-host'] || request.headers.host;
+      return `${proto}://${host}/api/chatbot-training/facebook/oauth/callback`;
+    }
+
+    throw new BadRequestException('FACEBOOK_OAUTH_REDIRECT_URI or BACKEND_PUBLIC_URL is required');
+  }
+
+  private getFrontendUrl() {
+    return this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000/chatbot-training';
+  }
+
+  private getSafeReturnUrl(returnUrl?: string) {
+    const fallback = this.getFrontendUrl();
+    if (!returnUrl) return fallback;
+    try {
+      const parsed = new URL(returnUrl);
+      return parsed.toString();
+    } catch {
+      return fallback;
+    }
+  }
+
+  private signFacebookState(payload: { botId: string; nonce: string; returnUrl: string }) {
+    const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    return `${encodedPayload}.${this.signFacebookValue(encodedPayload)}`;
+  }
+
+  private verifyFacebookState(state: string): { botId: string; nonce: string; returnUrl: string } {
+    const [encodedPayload, signature] = state.split('.');
+    if (!encodedPayload || !signature) {
+      throw new BadRequestException('Invalid Facebook OAuth state');
+    }
+    const expectedSignature = this.signFacebookValue(encodedPayload);
+    if (!this.safeEqual(signature, expectedSignature)) {
+      throw new BadRequestException('Invalid Facebook OAuth state signature');
+    }
+    try {
+      return JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    } catch {
+      throw new BadRequestException('Invalid Facebook OAuth state payload');
+    }
+  }
+
+  private signFacebookValue(value: string) {
+    const secret = this.configService.get<string>('FACEBOOK_APP_SECRET')
+      || this.configService.get<string>('AUTH_TOKEN_SECRET')
+      || 'app-ai-dentist-facebook-state';
+    return createHmac('sha256', secret).update(value).digest('base64url');
+  }
+
+  private safeEqual(a: string, b: string) {
+    const left = Buffer.from(a || '');
+    const right = Buffer.from(b || '');
+    if (left.length !== right.length) return false;
+    return timingSafeEqual(left, right);
   }
 
   // ==================== CATEGORIES ====================

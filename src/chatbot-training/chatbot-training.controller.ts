@@ -12,8 +12,9 @@ import {
   UseInterceptors,
   BadRequestException,
   Res,
+  Req,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ChatbotTrainingService } from './chatbot-training.service';
 import { Public } from '../auth/public.decorator';
@@ -99,6 +100,26 @@ export class ChatbotTrainingController {
     @Body() body: any,
   ) {
     return this.service.handleFacebookWebhook(botId, body);
+  }
+
+  @Get('facebook/oauth-url/:botId')
+  getFacebookOAuthUrl(
+    @Param('botId', ParseUUIDPipe) botId: string,
+    @Req() request: Request,
+    @Query('return_url') returnUrl?: string,
+  ) {
+    return this.service.getFacebookOAuthUrl(botId, request, returnUrl);
+  }
+
+  @Public()
+  @Get('facebook/oauth/callback')
+  async handleFacebookOAuthCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() response: Response,
+  ) {
+    const redirectUrl = await this.service.handleFacebookOAuthCallback(code, state);
+    return response.redirect(redirectUrl);
   }
 
   // ==================== UPLOAD KNOWLEDGE ====================
