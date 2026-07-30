@@ -53,6 +53,12 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    setTimeout(() => {
+      this.processFacebookIdleReminders().catch((err) => {
+        this.logger.error(`Facebook idle reminder startup check failed: ${err.message}`);
+      });
+    }, 10 * 1000);
+
     this.facebookIdleTimer = setInterval(() => {
       this.processFacebookIdleReminders().catch((err) => {
         this.logger.error(`Facebook idle reminder job failed: ${err.message}`);
@@ -177,7 +183,7 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
         try {
           await this.recordFacebookUserMessage(bot, facebook.page_id || '', senderId, text);
           await this.saveFacebookMessage(bot, facebook.page_id || '', senderId, 'user', text);
-          const history = await this.getFacebookChatHistory(facebook.page_id || '', senderId);
+          const history = await this.getFacebookChatHistory(facebook.page_id || '', senderId, true);
           const { reply } = await this.chat(text, history, bot.prompt || undefined);
           await this.sendFacebookMessage(
             facebook.page_access_token,
@@ -372,6 +378,7 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
     recipientId: string,
     text: string,
     quickReplies: Array<{ title: string; payload: string }> = [],
+    messagingType: 'RESPONSE' | 'UPDATE' = 'RESPONSE',
   ) {
     const message: any = { text: text.slice(0, 1900) };
     if (quickReplies.length > 0) {
@@ -386,7 +393,7 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
       'https://graph.facebook.com/me/messages',
       {
         recipient: { id: recipientId },
-        messaging_type: 'RESPONSE',
+        messaging_type: messagingType,
         message,
       },
       {
@@ -446,7 +453,7 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
     }));
   }
 
-  private async getFacebookChatHistory(pageId: string, senderId: string) {
+  private async getFacebookChatHistory(pageId: string, senderId: string, excludeLatest = false) {
     if (!pageId || !senderId) return [];
     const messages = await this.facebookMessageRepo.find({
       where: { page_id: pageId, sender_id: senderId },
@@ -454,10 +461,10 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
       take: 31,
     });
 
-    return messages
-      .reverse()
-      .slice(0, -1)
-      .map((message) => ({
+    const orderedMessages = messages.reverse();
+    const historyMessages = excludeLatest ? orderedMessages.slice(0, -1) : orderedMessages;
+
+    return historyMessages.map((message) => ({
         role: message.role,
         content: message.content,
       }));
@@ -475,55 +482,61 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
       const now = Date.now();
 
       for (const conversation of conversations) {
-        const bot = await this.chatbotRepo.findOne({ where: { id: conversation.chatbot_id } });
-        if (!bot?.settings?.facebook?.page_access_token) continue;
+        try {
+          const bot = await this.chatbotRepo.findOne({ where: { id: conversation.chatbot_id } });
+          if (!bot?.settings?.facebook?.page_access_token) continue;
 
-        const idleSettings: any = bot.settings?.idle_settings || {};
-        if (!idleSettings.enabled) continue;
+          const idleSettings: any = bot.settings?.idle_settings || {};
+          if (!idleSettings.enabled) continue;
 
-        const maxReminders = Math.max(Number(idleSettings.maxReminders) || 0, 0);
-        if (maxReminders === 0 || conversation.reminder_count >= maxReminders) {
-          conversation.awaiting_user_reply = false;
+          const maxReminders = Math.max(Number(idleSettings.maxReminders) || 0, 0);
+          if (maxReminders === 0 || conversation.reminder_count >= maxReminders) {
+            conversation.awaiting_user_reply = false;
+            await this.facebookConversationRepo.save(conversation);
+            continue;
+          }
+
+          const lastBotAt = conversation.last_bot_message_at?.getTime();
+          const lastUserAt = conversation.last_user_message_at?.getTime();
+          const lastActivityAt = Math.max(lastBotAt || 0, lastUserAt || 0);
+          if (!lastActivityAt) continue;
+
+          const delayMs = Math.max(Number(idleSettings.delaySeconds) || 30, 30) * 1000;
+          const reminderGapMs = delayMs;
+          const lastReminderAt = conversation.last_reminder_at?.getTime() || 0;
+          const withinMessengerWindow = lastUserAt && now - lastUserAt < 23 * 60 * 60 * 1000;
+          if (!withinMessengerWindow) {
+            conversation.awaiting_user_reply = false;
+            await this.facebookConversationRepo.save(conversation);
+            continue;
+          }
+
+          if (now - lastActivityAt < delayMs || (lastReminderAt && now - lastReminderAt < reminderGapMs)) {
+            continue;
+          }
+
+          const history = await this.getFacebookChatHistory(conversation.page_id, conversation.sender_id);
+          const reminderText = await this.buildFacebookIdleReminder(bot, conversation, idleSettings, history);
+          await this.sendFacebookMessage(
+            bot.settings.facebook.page_access_token,
+            conversation.sender_id,
+            reminderText,
+            this.getFacebookQuickReplies(bot),
+            'UPDATE',
+          );
+          await this.saveFacebookMessage(bot, conversation.page_id, conversation.sender_id, 'assistant', reminderText);
+
+          conversation.reminder_count += 1;
+          conversation.last_reminder_at = new Date();
+          conversation.last_bot_message_at = new Date();
+          if (conversation.reminder_count >= maxReminders) {
+            conversation.awaiting_user_reply = false;
+          }
           await this.facebookConversationRepo.save(conversation);
-          continue;
+          this.logger.log(`Sent Facebook idle reminder ${conversation.reminder_count}/${maxReminders} to sender ${conversation.sender_id} on page ${conversation.page_id}`);
+        } catch (err) {
+          this.logger.error(`Facebook idle reminder failed for conversation ${conversation.id}: ${err.message}`);
         }
-
-        const lastBotAt = conversation.last_bot_message_at?.getTime();
-        const lastUserAt = conversation.last_user_message_at?.getTime();
-        const lastActivityAt = Math.max(lastBotAt || 0, lastUserAt || 0);
-        if (!lastActivityAt) continue;
-
-        const delayMs = Math.max(Number(idleSettings.delaySeconds) || 30, 30) * 1000;
-        const reminderGapMs = delayMs;
-        const lastReminderAt = conversation.last_reminder_at?.getTime() || 0;
-        const withinMessengerWindow = lastUserAt && now - lastUserAt < 23 * 60 * 60 * 1000;
-        if (!withinMessengerWindow) {
-          conversation.awaiting_user_reply = false;
-          await this.facebookConversationRepo.save(conversation);
-          continue;
-        }
-
-        if (now - lastActivityAt < delayMs || (lastReminderAt && now - lastReminderAt < reminderGapMs)) {
-          continue;
-        }
-
-        const history = await this.getFacebookChatHistory(conversation.page_id, conversation.sender_id);
-        const reminderText = await this.buildFacebookIdleReminder(bot, conversation, idleSettings, history);
-        await this.sendFacebookMessage(
-          bot.settings.facebook.page_access_token,
-          conversation.sender_id,
-          reminderText,
-          this.getFacebookQuickReplies(bot),
-        );
-        await this.saveFacebookMessage(bot, conversation.page_id, conversation.sender_id, 'assistant', reminderText);
-
-        conversation.reminder_count += 1;
-        conversation.last_reminder_at = new Date();
-        conversation.last_bot_message_at = new Date();
-        if (conversation.reminder_count >= maxReminders) {
-          conversation.awaiting_user_reply = false;
-        }
-        await this.facebookConversationRepo.save(conversation);
       }
     } finally {
       this.facebookIdleJobRunning = false;
