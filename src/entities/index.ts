@@ -13,3 +13,4 @@ export { KnowledgeImage } from './knowledge-image.entity';
 export { ReferenceImage } from './reference-image.entity';
 export { AppSetting } from './app-setting.entity';
 export { FacebookConversation } from './facebook-conversation.entity';
+export { FacebookMessage } from './facebook-message.entity';

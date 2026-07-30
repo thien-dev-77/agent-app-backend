@@ -16,6 +16,7 @@ import { KnowledgeImage } from '../entities/knowledge-image.entity';
 import { ReferenceImage } from '../entities/reference-image.entity';
 import { AppSetting } from '../entities/app-setting.entity';
 import { FacebookConversation } from '../entities/facebook-conversation.entity';
+import { FacebookMessage } from '../entities/facebook-message.entity';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { FacebookConversation } from '../entities/facebook-conversation.entity';
             ReferenceImage,
             AppSetting,
             FacebookConversation,
+            FacebookMessage,
           ],
           synchronize: true,
           ssl: {

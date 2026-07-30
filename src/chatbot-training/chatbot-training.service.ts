@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { Request } from 'express';
 import { FacebookConversation } from '../entities/facebook-conversation.entity';
+import { FacebookMessage } from '../entities/facebook-message.entity';
 import { TrainingCategory } from '../entities/training-category.entity';
 import { TrainingPhrase } from '../entities/training-phrase.entity';
 import { TrainingScenario } from '../entities/training-scenario.entity';
@@ -45,6 +46,8 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
     private readonly imageRepo: Repository<KnowledgeImage>,
     @InjectRepository(FacebookConversation)
     private readonly facebookConversationRepo: Repository<FacebookConversation>,
+    @InjectRepository(FacebookMessage)
+    private readonly facebookMessageRepo: Repository<FacebookMessage>,
     private readonly openaiService: OpenAIService,
     private readonly configService: ConfigService,
   ) {}
@@ -173,13 +176,16 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
 
         try {
           await this.recordFacebookUserMessage(bot, facebook.page_id || '', senderId, text);
-          const { reply } = await this.chat(text, [], bot.prompt || undefined);
+          await this.saveFacebookMessage(bot, facebook.page_id || '', senderId, 'user', text);
+          const history = await this.getFacebookChatHistory(facebook.page_id || '', senderId);
+          const { reply } = await this.chat(text, history, bot.prompt || undefined);
           await this.sendFacebookMessage(
             facebook.page_access_token,
             senderId,
             reply,
             this.getFacebookQuickReplies(bot),
           );
+          await this.saveFacebookMessage(bot, facebook.page_id || '', senderId, 'assistant', reply);
           await this.recordFacebookBotMessage(bot, facebook.page_id || '', senderId);
         } catch (err) {
           this.logger.error(`Facebook message handling failed: ${err.message}`);
@@ -423,6 +429,40 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
     await this.facebookConversationRepo.save(conversation);
   }
 
+  private async saveFacebookMessage(
+    bot: Chatbot,
+    pageId: string,
+    senderId: string,
+    role: 'user' | 'assistant',
+    content: string,
+  ) {
+    if (!pageId || !senderId || !content?.trim()) return;
+    await this.facebookMessageRepo.save(this.facebookMessageRepo.create({
+      chatbot_id: bot.id,
+      page_id: pageId,
+      sender_id: senderId,
+      role,
+      content: content.trim(),
+    }));
+  }
+
+  private async getFacebookChatHistory(pageId: string, senderId: string) {
+    if (!pageId || !senderId) return [];
+    const messages = await this.facebookMessageRepo.find({
+      where: { page_id: pageId, sender_id: senderId },
+      order: { created_at: 'DESC' },
+      take: 31,
+    });
+
+    return messages
+      .reverse()
+      .slice(0, -1)
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+      }));
+  }
+
   private async processFacebookIdleReminders() {
     if (this.facebookIdleJobRunning) return;
     this.facebookIdleJobRunning = true;
@@ -467,13 +507,15 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
 
-        const reminderText = await this.buildFacebookIdleReminder(bot, conversation, idleSettings);
+        const history = await this.getFacebookChatHistory(conversation.page_id, conversation.sender_id);
+        const reminderText = await this.buildFacebookIdleReminder(bot, conversation, idleSettings, history);
         await this.sendFacebookMessage(
           bot.settings.facebook.page_access_token,
           conversation.sender_id,
           reminderText,
           this.getFacebookQuickReplies(bot),
         );
+        await this.saveFacebookMessage(bot, conversation.page_id, conversation.sender_id, 'assistant', reminderText);
 
         conversation.reminder_count += 1;
         conversation.last_reminder_at = new Date();
@@ -488,7 +530,12 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async buildFacebookIdleReminder(bot: Chatbot, conversation: FacebookConversation, idleSettings: any) {
+  private async buildFacebookIdleReminder(
+    bot: Chatbot,
+    conversation: FacebookConversation,
+    idleSettings: any,
+    history: { role: 'user' | 'assistant'; content: string }[] = [],
+  ) {
     const reminderNumber = conversation.reminder_count + 1;
     const scenarios = Array.isArray(idleSettings.reminderScenarios) ? idleSettings.reminderScenarios : [];
     const scenarioText = scenarios
@@ -503,7 +550,7 @@ ${scenarioText || '- Nhắc nhẹ khách tiếp tục cuộc trò chuyện.'}
 Hãy viết 1 tin nhắn follow-up ngắn, tự nhiên, thân thiện, không gây áp lực, không quá 220 ký tự. Chỉ trả về nội dung tin nhắn.]`;
 
     try {
-      const result = await this.chat(prompt, [], bot.prompt || undefined);
+      const result = await this.chat(prompt, history, bot.prompt || undefined);
       return result.reply.slice(0, 900);
     } catch {
       const firstScenario = scenarios.find((scenario) => scenario?.message);

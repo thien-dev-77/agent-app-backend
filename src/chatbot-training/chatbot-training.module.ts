@@ -7,6 +7,7 @@ import { TrainingFAQ } from '../entities/training-faq.entity';
 import { Chatbot } from '../entities/chatbot.entity';
 import { KnowledgeImage } from '../entities/knowledge-image.entity';
 import { FacebookConversation } from '../entities/facebook-conversation.entity';
+import { FacebookMessage } from '../entities/facebook-message.entity';
 import { OpenAIModule } from '../openai/openai.module';
 import { ChatbotTrainingController } from './chatbot-training.controller';
 import { ChatbotTrainingService } from './chatbot-training.service';
@@ -21,6 +22,7 @@ import { ChatbotTrainingService } from './chatbot-training.service';
       Chatbot,
       KnowledgeImage,
       FacebookConversation,
+      FacebookMessage,
     ]),
     OpenAIModule,
   ],
