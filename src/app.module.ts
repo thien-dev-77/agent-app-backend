@@ -13,6 +13,9 @@ import { CrmModule } from './crm/crm.module';
 import { GalleryModule } from './gallery/gallery.module';
 import { ReferenceImagesModule } from './reference-images/reference-images.module';
 import { SettingsModule } from './settings/settings.module';
+import { AuthModule } from './auth/auth.module';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from './auth/auth.guard';
 
 @Module({
   imports: [
@@ -33,6 +36,13 @@ import { SettingsModule } from './settings/settings.module';
     GalleryModule,
     ReferenceImagesModule,
     SettingsModule,
+    AuthModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
   ],
 })
 export class AppModule {}
