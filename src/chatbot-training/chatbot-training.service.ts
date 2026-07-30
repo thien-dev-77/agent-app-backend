@@ -104,6 +104,40 @@ export class ChatbotTrainingService {
 
   async handleFacebookWebhook(botId: string, body: any) {
     const bot = await this.findOneChatbot(botId);
+    return this.processFacebookWebhookForBot(bot, body);
+  }
+
+  verifyFacebookAppWebhook(mode: string, verifyToken: string, challenge: string) {
+    if (mode !== 'subscribe' || !verifyToken || !challenge) {
+      throw new BadRequestException('Invalid Facebook webhook verification request');
+    }
+
+    const globalVerifyToken = this.configService.get<string>('FACEBOOK_WEBHOOK_VERIFY_TOKEN');
+    if (!globalVerifyToken || globalVerifyToken !== verifyToken) {
+      throw new BadRequestException('Invalid verify token');
+    }
+    return challenge;
+  }
+
+  async handleFacebookAppWebhook(body: any) {
+    const entries = Array.isArray(body?.entry) ? body.entry : [];
+    for (const entry of entries) {
+      const pageId = entry?.id;
+      if (!pageId) continue;
+
+      const bot = await this.findChatbotByFacebookPageId(pageId);
+      if (!bot) {
+        this.logger.warn(`No chatbot connected to Facebook page ${pageId}`);
+        continue;
+      }
+
+      await this.processFacebookWebhookForBot(bot, { entry: [entry] });
+    }
+
+    return { status: 'ok' };
+  }
+
+  private async processFacebookWebhookForBot(bot: Chatbot, body: any) {
     const facebook = bot.settings?.facebook;
     if (!facebook?.page_access_token) {
       throw new BadRequestException('Facebook page is not connected');
@@ -128,6 +162,13 @@ export class ChatbotTrainingService {
     }
 
     return { status: 'ok' };
+  }
+
+  private async findChatbotByFacebookPageId(pageId: string): Promise<Chatbot | null> {
+    return this.chatbotRepo
+      .createQueryBuilder('chatbot')
+      .where("chatbot.settings->'facebook'->>'page_id' = :pageId", { pageId })
+      .getOne();
   }
 
   getFacebookOAuthUrl(botId: string, request: Request, returnUrl?: string) {
@@ -196,11 +237,60 @@ export class ChatbotTrainingService {
       timeout: 30000,
     });
     const pages = Array.isArray(pagesResponse.data?.data) ? pagesResponse.data.data : [];
-    const page = pages.find((item) => item?.access_token);
-    if (!page) {
+    const authorizedPages = pages
+      .filter((item) => item?.id && item?.name && item?.access_token)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        access_token: item.access_token,
+        tasks: item.tasks || [],
+      }));
+    if (authorizedPages.length === 0) {
       throw new BadRequestException('No manageable Facebook page with access token was returned');
     }
 
+    bot.settings = {
+      ...(bot.settings || {}),
+      facebook_oauth_pages: authorizedPages,
+    };
+    await this.chatbotRepo.save(bot);
+
+    const redirectUrl = new URL(statePayload.returnUrl || this.getFrontendUrl());
+    redirectUrl.searchParams.set('bot', statePayload.botId);
+    redirectUrl.searchParams.set('facebook', authorizedPages.length === 1 ? 'connected' : 'select_page');
+
+    if (authorizedPages.length === 1) {
+      await this.connectFacebookOAuthPage(statePayload.botId, authorizedPages[0].id);
+      redirectUrl.searchParams.set('page', authorizedPages[0].name || authorizedPages[0].id);
+    }
+
+    return redirectUrl.toString();
+  }
+
+  async getFacebookOAuthPages(botId: string) {
+    const bot = await this.findOneChatbot(botId);
+    const pages = bot.settings?.facebook_oauth_pages || [];
+    return {
+      pages: pages.map((page) => ({
+        id: page.id,
+        name: page.name,
+        tasks: page.tasks || [],
+      })),
+    };
+  }
+
+  async connectFacebookOAuthPage(botId: string, pageId: string) {
+    if (!pageId) {
+      throw new BadRequestException('page_id is required');
+    }
+
+    const bot = await this.findOneChatbot(botId);
+    const page = (bot.settings?.facebook_oauth_pages || []).find((item) => item.id === pageId);
+    if (!page?.access_token) {
+      throw new BadRequestException('Facebook page was not authorized for this chatbot');
+    }
+
+    const graphVersion = this.getFacebookGraphVersion();
     await axios.post(
       `https://graph.facebook.com/${graphVersion}/${page.id}/subscribed_apps`,
       null,
@@ -213,6 +303,7 @@ export class ChatbotTrainingService {
       },
     );
 
+    const appSecret = this.configService.get<string>('FACEBOOK_APP_SECRET') || '';
     bot.settings = {
       ...(bot.settings || {}),
       facebook: {
@@ -227,14 +318,10 @@ export class ChatbotTrainingService {
         connected_at: new Date().toISOString(),
         status: 'connected',
       },
+      facebook_oauth_pages: [],
     };
-    await this.chatbotRepo.save(bot);
 
-    const redirectUrl = new URL(statePayload.returnUrl || this.getFrontendUrl());
-    redirectUrl.searchParams.set('bot', statePayload.botId);
-    redirectUrl.searchParams.set('facebook', 'connected');
-    redirectUrl.searchParams.set('page', page.name || page.id);
-    return redirectUrl.toString();
+    return this.chatbotRepo.save(bot);
   }
 
   private async sendFacebookMessage(pageAccessToken: string, recipientId: string, text: string) {

@@ -38,6 +38,12 @@ export class Chatbot {
       connected_at?: string;
       status?: string;
     };
+    facebook_oauth_pages?: Array<{
+      id: string;
+      name: string;
+      access_token: string;
+      tasks?: string[];
+    }>;
   } | null;
 
   @Column({ type: 'varchar', default: 'active' })

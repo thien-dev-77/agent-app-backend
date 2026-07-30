@@ -94,12 +94,30 @@ export class ChatbotTrainingController {
   }
 
   @Public()
+  @Get('facebook/webhook')
+  async verifyFacebookAppWebhook(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') verifyToken: string,
+    @Query('hub.challenge') challenge: string,
+    @Res() response: Response,
+  ) {
+    const verifiedChallenge = this.service.verifyFacebookAppWebhook(mode, verifyToken, challenge);
+    return response.status(200).send(verifiedChallenge);
+  }
+
+  @Public()
   @Post('facebook/webhook/:botId')
   handleFacebookWebhook(
     @Param('botId', ParseUUIDPipe) botId: string,
     @Body() body: any,
   ) {
     return this.service.handleFacebookWebhook(botId, body);
+  }
+
+  @Public()
+  @Post('facebook/webhook')
+  handleFacebookAppWebhook(@Body() body: any) {
+    return this.service.handleFacebookAppWebhook(body);
   }
 
   @Get('facebook/oauth-url/:botId')
@@ -120,6 +138,19 @@ export class ChatbotTrainingController {
   ) {
     const redirectUrl = await this.service.handleFacebookOAuthCallback(code, state);
     return response.redirect(redirectUrl);
+  }
+
+  @Get('facebook/oauth-pages/:botId')
+  getFacebookOAuthPages(@Param('botId', ParseUUIDPipe) botId: string) {
+    return this.service.getFacebookOAuthPages(botId);
+  }
+
+  @Post('facebook/connect-page/:botId')
+  connectFacebookOAuthPage(
+    @Param('botId', ParseUUIDPipe) botId: string,
+    @Body() body: { page_id: string },
+  ) {
+    return this.service.connectFacebookOAuthPage(botId, body.page_id);
   }
 
   // ==================== UPLOAD KNOWLEDGE ====================
