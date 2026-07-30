@@ -78,11 +78,21 @@ export class GeminiService {
     const styleInstruction = videoStyle === 'intro'
       ? `Video style: natural introduction video. Create a calm, realistic, straightforward intro/explainer clip with gentle camera movement, minimal transitions, no aggressive sales hook, no hard-sell CTA, and no flashy TVC pacing. Show the person/product/service clearly and naturally, like a professional brand introduction or product overview.`
       : `Video style: polished TVC commercial. Create a clear opening hook, visual benefit moment, product/brand hero moment, cinematic pacing, and a short CTA. Keep transitions purposeful and commercial-quality.`;
+    const imageToVideoMotionInstruction = imageCount > 0
+      ? `Image-to-video motion rules for Google Omni:
+- Use the input image(s) as the visual identity source. Do not redraw, redesign, beautify, age-change, restyle, or reinterpret the person/product.
+- Preserve the exact real person identity from the reference image(s): face, facial proportions, hairstyle, hair color, skin tone, body shape, outfit, outfit color, accessories, and distinctive details. Preserve exact product identity when products appear.
+- The animation prompt should describe MOTION ONLY. Do not repeat detailed appearance descriptions from the source image such as beauty, hair color, dress color, face shape, age, skin tone, or wardrobe details.
+- Animate subtle realistic micro-movements from the storyboard: natural breathing, subtle eye blinking, micro-expressions, soft smile only when appropriate, natural lip movement if speaking, tiny head/shoulder shifts, relaxed hand/finger motion, and slight hair sway when wind or movement exists.
+- Add small environmental realism only when appropriate: soft wind, realistic light reflections in the eyes, tiny dust particles, gentle fabric movement, minor handheld camera drift, slow pan/push-in, or natural focus breathing.
+- Keep motion restrained and continuous. Fewer extra visual details produce a more natural result and reduce face/body deformation.`
+      : '';
 
     const videoPrompt = [
       imageTags,
       imageCount > 0 ? referenceOnlyPrompt : prompt,
       styleInstruction,
+      imageToVideoMotionInstruction,
       options?.durationSeconds ? `Target duration: ${options.durationSeconds} seconds. Pace the storybook shots to fit this exact duration as closely as the model allows.` : '',
       options?.voiceStyle ? `Audio/voice: ${options.voiceStyle}. Vietnamese language voiceover if narration is present. Keep speech natural, clear, and suitable for a professional TVC commercial.` : '',
     ].filter(Boolean).join('\n\n');
@@ -90,7 +100,7 @@ export class GeminiService {
     input.push({
       type: 'text',
       text: input.length > 0
-        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. The input may contain a real person, a product, or both. If <IMAGE_REF_0> contains a real person, prioritize it above all other images for facial identity and wardrobe consistency. Keep the same face, facial structure, age, hairstyle, hair color, skin tone, body shape, outfit, outfit color, accessories, and distinctive details throughout the whole video. If any reference contains a product, preserve the exact product shape, packaging, label, logo, material, color, scale, and key details. Use later reference images for motion, camera, scene continuity, composition, product/service clarity, brand mood, and styling only; they must not change the person's identity, clothing, or product identity. The references should not be used as literal first frames or still images in the final video. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested.`
+        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. The input may contain a real person, a product, or both. If <IMAGE_REF_0> contains a real person, prioritize it above all other images for facial identity and wardrobe consistency. Keep the same face, facial structure, age, hairstyle, hair color, skin tone, body shape, outfit, outfit color, accessories, and distinctive details throughout the whole video. If any reference contains a product, preserve the exact product shape, packaging, label, logo, material, color, scale, and key details. Use later reference images for motion, camera, scene continuity, composition, product/service clarity, brand mood, and styling only; they must not change the person's identity, clothing, or product identity. The references should not be used as literal first frames or still images in the final video. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested. For realism, follow the storyboard action but keep the generated video prompt motion-first: subtle eye blinks, natural breathing, micro-expressions, gentle lip movement when speaking, slight hair/fabric movement, small body shifts, realistic eye highlights, and slow natural camera movement. Avoid adding new appearance descriptions because they can cause face/body deformation.`
         : videoPrompt,
     });
 
