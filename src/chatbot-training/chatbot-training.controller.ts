@@ -153,6 +153,11 @@ export class ChatbotTrainingController {
     return this.service.connectFacebookOAuthPage(botId, body.page_id);
   }
 
+  @Post('facebook/sync-profile/:botId')
+  syncFacebookProfile(@Param('botId', ParseUUIDPipe) botId: string) {
+    return this.service.syncConnectedFacebookProfile(botId);
+  }
+
   // ==================== UPLOAD KNOWLEDGE ====================
 
   @Post('knowledge/upload')

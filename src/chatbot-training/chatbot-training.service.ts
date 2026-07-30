@@ -154,7 +154,12 @@ export class ChatbotTrainingService {
 
         try {
           const { reply } = await this.chat(text, [], bot.prompt || undefined);
-          await this.sendFacebookMessage(facebook.page_access_token, senderId, reply);
+          await this.sendFacebookMessage(
+            facebook.page_access_token,
+            senderId,
+            reply,
+            this.getFacebookQuickReplies(bot),
+          );
         } catch (err) {
           this.logger.error(`Facebook message handling failed: ${err.message}`);
         }
@@ -302,6 +307,7 @@ export class ChatbotTrainingService {
         timeout: 30000,
       },
     );
+    await this.syncFacebookMessengerProfile(page.access_token, bot);
 
     const appSecret = this.configService.get<string>('FACEBOOK_APP_SECRET') || '';
     bot.settings = {
@@ -324,14 +330,82 @@ export class ChatbotTrainingService {
     return this.chatbotRepo.save(bot);
   }
 
-  private async sendFacebookMessage(pageAccessToken: string, recipientId: string, text: string) {
+  async syncConnectedFacebookProfile(botId: string) {
+    const bot = await this.findOneChatbot(botId);
+    const pageAccessToken = bot.settings?.facebook?.page_access_token;
+    if (!pageAccessToken) {
+      throw new BadRequestException('Facebook page is not connected');
+    }
+    await this.syncFacebookMessengerProfile(pageAccessToken, bot);
+    return { status: 'ok' };
+  }
+
+  private async sendFacebookMessage(
+    pageAccessToken: string,
+    recipientId: string,
+    text: string,
+    quickReplies: Array<{ title: string; payload: string }> = [],
+  ) {
+    const message: any = { text: text.slice(0, 1900) };
+    if (quickReplies.length > 0) {
+      message.quick_replies = quickReplies.slice(0, 11).map((reply) => ({
+        content_type: 'text',
+        title: reply.title.slice(0, 20),
+        payload: reply.payload.slice(0, 1000),
+      }));
+    }
+
     await axios.post(
       'https://graph.facebook.com/me/messages',
       {
         recipient: { id: recipientId },
         messaging_type: 'RESPONSE',
-        message: { text: text.slice(0, 1900) },
+        message,
       },
+      {
+        params: { access_token: pageAccessToken },
+        timeout: 30000,
+      },
+    );
+  }
+
+  private getFacebookQuickReplies(bot: Chatbot) {
+    const questions = Array.isArray(bot.settings?.opening_questions)
+      ? bot.settings.opening_questions
+      : [];
+    return questions
+      .filter((question) => typeof question === 'string' && question.trim())
+      .slice(0, 6)
+      .map((question) => ({
+        title: question.trim(),
+        payload: question.trim(),
+      }));
+  }
+
+  private async syncFacebookMessengerProfile(pageAccessToken: string, bot: Chatbot) {
+    const graphVersion = this.getFacebookGraphVersion();
+    const quickReplies = this.getFacebookQuickReplies(bot);
+    const iceBreakers = quickReplies.slice(0, 4).map((reply) => ({
+      question: reply.title.slice(0, 80),
+      payload: reply.payload.slice(0, 1000),
+    }));
+
+    const payload: any = {
+      get_started: { payload: 'GET_STARTED' },
+      greeting: [
+        {
+          locale: 'default',
+          text: `Xin chào, ${bot.name || 'tư vấn viên'} sẵn sàng hỗ trợ bạn.`,
+        },
+      ],
+    };
+    if (iceBreakers.length > 0) {
+      payload.ice_breakers = iceBreakers;
+    }
+
+    await axios.post(
+      `https://graph.facebook.com/${graphVersion}/me/messenger_profile`,
+      payload,
       {
         params: { access_token: pageAccessToken },
         timeout: 30000,
