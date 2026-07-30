@@ -11,9 +11,12 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ChatbotTrainingService } from './chatbot-training.service';
+import { Public } from '../auth/public.decorator';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
@@ -72,6 +75,30 @@ export class ChatbotTrainingController {
   @Delete('chatbots/:id')
   removeChatbot(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.removeChatbot(id);
+  }
+
+  // ==================== FACEBOOK PAGE WEBHOOK ====================
+
+  @Public()
+  @Get('facebook/webhook/:botId')
+  async verifyFacebookWebhook(
+    @Param('botId', ParseUUIDPipe) botId: string,
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') verifyToken: string,
+    @Query('hub.challenge') challenge: string,
+    @Res() response: Response,
+  ) {
+    const verifiedChallenge = await this.service.verifyFacebookWebhook(botId, mode, verifyToken, challenge);
+    return response.status(200).send(verifiedChallenge);
+  }
+
+  @Public()
+  @Post('facebook/webhook/:botId')
+  handleFacebookWebhook(
+    @Param('botId', ParseUUIDPipe) botId: string,
+    @Body() body: any,
+  ) {
+    return this.service.handleFacebookWebhook(botId, body);
   }
 
   // ==================== UPLOAD KNOWLEDGE ====================

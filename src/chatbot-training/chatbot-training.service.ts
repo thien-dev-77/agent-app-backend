@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import axios from 'axios';
 import { TrainingCategory } from '../entities/training-category.entity';
 import { TrainingPhrase } from '../entities/training-phrase.entity';
 import { TrainingScenario } from '../entities/training-scenario.entity';
@@ -21,6 +22,8 @@ import {
 
 @Injectable()
 export class ChatbotTrainingService {
+  private readonly logger = new Logger(ChatbotTrainingService.name);
+
   constructor(
     @InjectRepository(TrainingCategory)
     private readonly categoryRepo: Repository<TrainingCategory>,
@@ -79,6 +82,62 @@ export class ChatbotTrainingService {
   async removeChatbot(id: string): Promise<void> {
     const bot = await this.findOneChatbot(id);
     await this.chatbotRepo.remove(bot);
+  }
+
+  async verifyFacebookWebhook(botId: string, mode: string, verifyToken: string, challenge: string) {
+    if (mode !== 'subscribe' || !verifyToken || !challenge) {
+      throw new BadRequestException('Invalid Facebook webhook verification request');
+    }
+
+    const bot = await this.findOneChatbot(botId);
+    const expectedToken = bot.settings?.facebook?.verify_token;
+    if (!expectedToken || expectedToken !== verifyToken) {
+      throw new BadRequestException('Invalid verify token');
+    }
+    return challenge;
+  }
+
+  async handleFacebookWebhook(botId: string, body: any) {
+    const bot = await this.findOneChatbot(botId);
+    const facebook = bot.settings?.facebook;
+    if (!facebook?.page_access_token) {
+      throw new BadRequestException('Facebook page is not connected');
+    }
+
+    const entries = Array.isArray(body?.entry) ? body.entry : [];
+    for (const entry of entries) {
+      const events = Array.isArray(entry?.messaging) ? entry.messaging : [];
+      for (const event of events) {
+        const senderId = event?.sender?.id;
+        const text = event?.message?.text;
+        const isEcho = Boolean(event?.message?.is_echo);
+        if (!senderId || !text || isEcho) continue;
+
+        try {
+          const { reply } = await this.chat(text, [], bot.prompt || undefined);
+          await this.sendFacebookMessage(facebook.page_access_token, senderId, reply);
+        } catch (err) {
+          this.logger.error(`Facebook message handling failed: ${err.message}`);
+        }
+      }
+    }
+
+    return { status: 'ok' };
+  }
+
+  private async sendFacebookMessage(pageAccessToken: string, recipientId: string, text: string) {
+    await axios.post(
+      'https://graph.facebook.com/me/messages',
+      {
+        recipient: { id: recipientId },
+        messaging_type: 'RESPONSE',
+        message: { text: text.slice(0, 1900) },
+      },
+      {
+        params: { access_token: pageAccessToken },
+        timeout: 30000,
+      },
+    );
   }
 
   // ==================== CATEGORIES ====================

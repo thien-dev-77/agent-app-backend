@@ -69,14 +69,13 @@ export class GeminiService {
     const imageCount = input.length;
     const compactPrompt = this.extractVideoPrompt(prompt);
     const referenceOnlyPrompt = compactPrompt
-      .replace(/<FIRST_FRAME>/g, '<__FIRST_FRAME_REF__>')
-      .replace(/<IMAGE_REF_(\d+)>/g, (_, index) => `<IMAGE_REF_${Number(index) + 1}>`)
-      .replace(/<__FIRST_FRAME_REF__>/g, '<IMAGE_REF_0>');
+      .replace(/<FIRST_FRAME>/g, '<IMAGE_REF_0>')
+      .replace(/<IMAGE_REF_(\d+)>/g, (_, index) => `<IMAGE_REF_${Number(index) + 1}>`);
     const imageTags = imageCount > 0
       ? [
           `[# References ${Array.from({ length: imageCount }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 1}`).join(' ')}]`,
           '',
-          `Image tag rules: Use all images only as scene and subject continuity references, not literal initial frames. Do not show any storyboard/reference still as the first frame. Reference tags start at <IMAGE_REF_0> for Image1. Treat <IMAGE_REF_0> as the primary continuity reference for the main subject and wardrobe. Other reference images should guide motion, camera, scene continuity, and composition without overriding the main subject continuity from <IMAGE_REF_0>.`,
+          `Image tag rules: Use all images only as scene, subject, wardrobe, product, and motion references. Do not use any image as a literal starting frame or ending frame. Do not show storyboard sheets, contact sheets, panel grids, UI labels, or reference stills in the final video. Reference tags start at <IMAGE_REF_0> for Image1. Treat <IMAGE_REF_0> as the primary continuity reference for the main subject and wardrobe.`,
         ].filter(Boolean).join('\n')
       : '';
     const videoStyle = options?.videoStyle || 'tvc';
@@ -84,8 +83,8 @@ export class GeminiService {
       ? `Video style: natural introduction video. Create a calm, realistic, straightforward intro/explainer clip with gentle camera movement, minimal transitions, no aggressive sales hook, no hard-sell CTA, and no flashy TVC pacing. Show the person/product/service clearly and naturally, like a professional brand introduction or product overview.`
       : `Video style: polished TVC commercial. Create a clear opening hook, visual benefit moment, product/brand hero moment, cinematic pacing, and a short CTA. Keep transitions purposeful and commercial-quality.`;
     const imageToVideoMotionInstruction = imageCount > 0
-      ? `Image-to-video motion rules for Google Omni:
-- Use the input image(s) as visual continuity references. Do not redraw, redesign, beautify, age-change, restyle, or reinterpret the subject/product.
+      ? `Reference-to-video motion rules for Google Omni:
+- Use the input image(s) as visual continuity references only, not as the first frame. Do not redraw, redesign, beautify, age-change, restyle, or reinterpret the subject/product.
 - Maintain subject, wardrobe, product, and scene continuity from the reference image(s) without requesting recognition of any named or private individual.
 - The animation prompt should describe MOTION ONLY. Do not repeat detailed appearance descriptions from the source image such as beauty, hair color, dress color, face shape, age, skin tone, or wardrobe details.
 - Animate subtle realistic micro-movements from the storyboard: natural breathing, subtle eye blinking, micro-expressions, soft smile only when appropriate, natural lip movement if speaking, tiny head/shoulder shifts, relaxed hand/finger motion, and slight hair sway when wind or movement exists.
@@ -105,7 +104,7 @@ export class GeminiService {
     input.push({
       type: 'text',
       text: input.length > 0
-        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. The input may contain a human subject, a product, or both. Use <IMAGE_REF_0> as the primary reference for subject continuity, wardrobe continuity, and product continuity. If any reference contains a product, preserve the product shape, packaging, label, logo, material, color, scale, and key details. Use later reference images for motion, camera, scene continuity, composition, product/service clarity, brand mood, and styling only; they must not change the main subject, wardrobe, or product continuity. The references should not be used as literal first frames or still images in the final video. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested. Do not mention names or request recognition of any named or private individual. For realism, follow the storyboard action but keep the generated video prompt motion-first: subtle eye blinks, natural breathing, micro-expressions, gentle lip movement when speaking, slight hair/fabric movement, small body shifts, realistic eye highlights, and slow natural camera movement. Avoid adding new appearance descriptions because they can cause face/body deformation.`
+        ? `${videoPrompt}\n\nUse the tagged images only as visual references for video generation. The input may contain a human subject, a product, or both. Use <IMAGE_REF_0> as the primary reference for subject continuity, wardrobe continuity, and product continuity. If any reference contains a product, preserve the product shape, packaging, label, logo, material, color, scale, and key details. Use later reference images for motion, camera, scene continuity, composition, product/service clarity, brand mood, and styling only; they must not change the main subject, wardrobe, or product continuity. Do not use references as literal first frames, ending frames, frozen stills, storyboard panels, or visible contact sheets in the final video. Do not show any drawing/sketch/UI/storyboard still from the input in the final video unless explicitly requested. Do not mention names or request recognition of any named or private individual. For realism, follow the storyboard action but keep the generated video prompt motion-first: subtle eye blinks, natural breathing, micro-expressions, gentle lip movement when speaking, slight hair/fabric movement, small body shifts, realistic eye highlights, and slow natural camera movement. Avoid adding new appearance descriptions because they can cause face/body deformation.`
         : videoPrompt,
     });
 
@@ -115,7 +114,7 @@ export class GeminiService {
       input,
       generation_config: {
         video_config: {
-          task: imageCount > 0 ? 'image_to_video' : 'text_to_video',
+          task: imageCount > 0 ? 'reference_to_video' : 'text_to_video',
         },
       },
       response_format: {

@@ -29,6 +29,15 @@ export class Chatbot {
     segments?: number;
     opening_questions?: string[];
     rules?: string[];
+    facebook?: {
+      page_id?: string;
+      page_name?: string;
+      page_access_token?: string;
+      verify_token?: string;
+      app_secret?: string;
+      connected_at?: string;
+      status?: string;
+    };
   } | null;
 
   @Column({ type: 'varchar', default: 'active' })
