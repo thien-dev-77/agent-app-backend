@@ -113,8 +113,8 @@ export class GeminiService {
     const interaction = await ai.interactions.create({
       model: 'gemini-omni-flash-preview',
       input,
-      generationConfig: {
-        videoConfig: {
+      generation_config: {
+        video_config: {
           task: imageCount > 0 ? 'image_to_video' : 'text_to_video',
         },
       },
