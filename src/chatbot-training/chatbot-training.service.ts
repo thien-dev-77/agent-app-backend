@@ -95,7 +95,8 @@ export class ChatbotTrainingService {
 
     const bot = await this.findOneChatbot(botId);
     const expectedToken = bot.settings?.facebook?.verify_token;
-    if (!expectedToken || expectedToken !== verifyToken) {
+    const globalVerifyToken = this.configService.get<string>('FACEBOOK_WEBHOOK_VERIFY_TOKEN');
+    if ((!expectedToken || expectedToken !== verifyToken) && (!globalVerifyToken || globalVerifyToken !== verifyToken)) {
       throw new BadRequestException('Invalid verify token');
     }
     return challenge;
@@ -219,7 +220,9 @@ export class ChatbotTrainingService {
         page_id: page.id,
         page_name: page.name || '',
         page_access_token: page.access_token,
-        verify_token: bot.settings?.facebook?.verify_token || randomBytes(16).toString('hex'),
+        verify_token: bot.settings?.facebook?.verify_token
+          || this.configService.get<string>('FACEBOOK_WEBHOOK_VERIFY_TOKEN')
+          || randomBytes(16).toString('hex'),
         app_secret: appSecret,
         connected_at: new Date().toISOString(),
         status: 'connected',
