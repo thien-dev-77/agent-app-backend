@@ -29,6 +29,17 @@ export class Chatbot {
     segments?: number;
     opening_questions?: string[];
     rules?: string[];
+    idle_settings?: {
+      enabled?: boolean;
+      delaySeconds?: number;
+      maxReminders?: number;
+      context?: string;
+      reminderScenarios?: Array<{
+        title?: string;
+        trigger?: string;
+        message?: string;
+      }>;
+    };
     facebook?: {
       page_id?: string;
       page_name?: string;

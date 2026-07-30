@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { Request } from 'express';
+import { FacebookConversation } from '../entities/facebook-conversation.entity';
 import { TrainingCategory } from '../entities/training-category.entity';
 import { TrainingPhrase } from '../entities/training-phrase.entity';
 import { TrainingScenario } from '../entities/training-scenario.entity';
@@ -24,8 +25,10 @@ import {
 } from './dto';
 
 @Injectable()
-export class ChatbotTrainingService {
+export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatbotTrainingService.name);
+  private facebookIdleTimer: NodeJS.Timeout | null = null;
+  private facebookIdleJobRunning = false;
 
   constructor(
     @InjectRepository(TrainingCategory)
@@ -40,9 +43,25 @@ export class ChatbotTrainingService {
     private readonly chatbotRepo: Repository<Chatbot>,
     @InjectRepository(KnowledgeImage)
     private readonly imageRepo: Repository<KnowledgeImage>,
+    @InjectRepository(FacebookConversation)
+    private readonly facebookConversationRepo: Repository<FacebookConversation>,
     private readonly openaiService: OpenAIService,
     private readonly configService: ConfigService,
   ) {}
+
+  onModuleInit() {
+    this.facebookIdleTimer = setInterval(() => {
+      this.processFacebookIdleReminders().catch((err) => {
+        this.logger.error(`Facebook idle reminder job failed: ${err.message}`);
+      });
+    }, 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.facebookIdleTimer) {
+      clearInterval(this.facebookIdleTimer);
+    }
+  }
 
   // ==================== KNOWLEDGE IMAGES ====================
 
@@ -153,6 +172,7 @@ export class ChatbotTrainingService {
         if (!senderId || !text || isEcho) continue;
 
         try {
+          await this.recordFacebookUserMessage(bot, facebook.page_id || '', senderId, text);
           const { reply } = await this.chat(text, [], bot.prompt || undefined);
           await this.sendFacebookMessage(
             facebook.page_access_token,
@@ -160,6 +180,7 @@ export class ChatbotTrainingService {
             reply,
             this.getFacebookQuickReplies(bot),
           );
+          await this.recordFacebookBotMessage(bot, facebook.page_id || '', senderId);
         } catch (err) {
           this.logger.error(`Facebook message handling failed: ${err.message}`);
         }
@@ -367,6 +388,127 @@ export class ChatbotTrainingService {
         timeout: 30000,
       },
     );
+  }
+
+  private async recordFacebookUserMessage(bot: Chatbot, pageId: string, senderId: string, text: string) {
+    if (!pageId) return;
+    let conversation = await this.facebookConversationRepo.findOne({
+      where: { page_id: pageId, sender_id: senderId },
+    });
+    if (!conversation) {
+      conversation = this.facebookConversationRepo.create({
+        chatbot_id: bot.id,
+        page_id: pageId,
+        sender_id: senderId,
+      });
+    }
+    conversation.chatbot_id = bot.id;
+    conversation.last_user_message = text;
+    conversation.last_user_message_at = new Date();
+    conversation.awaiting_user_reply = true;
+    conversation.reminder_count = 0;
+    conversation.last_reminder_at = null;
+    await this.facebookConversationRepo.save(conversation);
+  }
+
+  private async recordFacebookBotMessage(bot: Chatbot, pageId: string, senderId: string) {
+    if (!pageId) return;
+    const conversation = await this.facebookConversationRepo.findOne({
+      where: { page_id: pageId, sender_id: senderId },
+    });
+    if (!conversation) return;
+    conversation.chatbot_id = bot.id;
+    conversation.last_bot_message_at = new Date();
+    conversation.awaiting_user_reply = true;
+    await this.facebookConversationRepo.save(conversation);
+  }
+
+  private async processFacebookIdleReminders() {
+    if (this.facebookIdleJobRunning) return;
+    this.facebookIdleJobRunning = true;
+    try {
+      const conversations = await this.facebookConversationRepo.find({
+        where: { awaiting_user_reply: true },
+        take: 200,
+        order: { updated_at: 'ASC' },
+      });
+      const now = Date.now();
+
+      for (const conversation of conversations) {
+        const bot = await this.chatbotRepo.findOne({ where: { id: conversation.chatbot_id } });
+        if (!bot?.settings?.facebook?.page_access_token) continue;
+
+        const idleSettings: any = bot.settings?.idle_settings || {};
+        if (!idleSettings.enabled) continue;
+
+        const maxReminders = Math.max(Number(idleSettings.maxReminders) || 0, 0);
+        if (maxReminders === 0 || conversation.reminder_count >= maxReminders) {
+          conversation.awaiting_user_reply = false;
+          await this.facebookConversationRepo.save(conversation);
+          continue;
+        }
+
+        const lastBotAt = conversation.last_bot_message_at?.getTime();
+        const lastUserAt = conversation.last_user_message_at?.getTime();
+        const lastActivityAt = Math.max(lastBotAt || 0, lastUserAt || 0);
+        if (!lastActivityAt) continue;
+
+        const delayMs = Math.max(Number(idleSettings.delaySeconds) || 30, 30) * 1000;
+        const reminderGapMs = delayMs;
+        const lastReminderAt = conversation.last_reminder_at?.getTime() || 0;
+        const withinMessengerWindow = lastUserAt && now - lastUserAt < 23 * 60 * 60 * 1000;
+        if (!withinMessengerWindow) {
+          conversation.awaiting_user_reply = false;
+          await this.facebookConversationRepo.save(conversation);
+          continue;
+        }
+
+        if (now - lastActivityAt < delayMs || (lastReminderAt && now - lastReminderAt < reminderGapMs)) {
+          continue;
+        }
+
+        const reminderText = await this.buildFacebookIdleReminder(bot, conversation, idleSettings);
+        await this.sendFacebookMessage(
+          bot.settings.facebook.page_access_token,
+          conversation.sender_id,
+          reminderText,
+          this.getFacebookQuickReplies(bot),
+        );
+
+        conversation.reminder_count += 1;
+        conversation.last_reminder_at = new Date();
+        conversation.last_bot_message_at = new Date();
+        if (conversation.reminder_count >= maxReminders) {
+          conversation.awaiting_user_reply = false;
+        }
+        await this.facebookConversationRepo.save(conversation);
+      }
+    } finally {
+      this.facebookIdleJobRunning = false;
+    }
+  }
+
+  private async buildFacebookIdleReminder(bot: Chatbot, conversation: FacebookConversation, idleSettings: any) {
+    const reminderNumber = conversation.reminder_count + 1;
+    const scenarios = Array.isArray(idleSettings.reminderScenarios) ? idleSettings.reminderScenarios : [];
+    const scenarioText = scenarios
+      .map((scenario, index) => `${index + 1}. ${scenario.title || 'Tình huống'}: ${scenario.trigger || ''} -> ${scenario.message || ''}`)
+      .join('\n');
+    const prompt = `[HỆ THỐNG: Khách hàng trên Facebook đã im lặng. Đây là lần nhắc ${reminderNumber}/${idleSettings.maxReminders}.
+Tin nhắn cuối của khách: "${conversation.last_user_message || ''}"
+Bối cảnh ưu đãi/thông tin: ${idleSettings.context || ''}
+Các mẫu nhắc ưu tiên:
+${scenarioText || '- Nhắc nhẹ khách tiếp tục cuộc trò chuyện.'}
+
+Hãy viết 1 tin nhắn follow-up ngắn, tự nhiên, thân thiện, không gây áp lực, không quá 220 ký tự. Chỉ trả về nội dung tin nhắn.]`;
+
+    try {
+      const result = await this.chat(prompt, [], bot.prompt || undefined);
+      return result.reply.slice(0, 900);
+    } catch {
+      const firstScenario = scenarios.find((scenario) => scenario?.message);
+      return (firstScenario?.message || 'Anh/chị muốn em hỗ trợ tiếp phần này không ạ?').slice(0, 900);
+    }
   }
 
   private getFacebookQuickReplies(bot: Chatbot) {
