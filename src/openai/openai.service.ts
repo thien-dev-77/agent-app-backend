@@ -953,6 +953,82 @@ private buildModularPrompt(spec: any, params: {
     .trim();
 }
 
+  async generateMarketingContent(params: {
+    brand?: {
+      name?: string;
+      primary_color?: string;
+      secondary_color?: string;
+      description?: string;
+      logo_url?: string;
+    };
+    marketingPlan?: string;
+    guideline?: string;
+    brief: string;
+    contentType?: 'facebook_ad' | 'daily_post' | 'video_script';
+    imageUrls?: string[];
+  }): Promise<string> {
+    const typeLabel = params.contentType === 'video_script'
+      ? 'kịch bản video ngắn'
+      : params.contentType === 'daily_post'
+        ? 'bài daily/social post'
+        : 'bài quảng cáo Facebook';
+
+    const brand = params.brand || {};
+    const systemPrompt = `Bạn là senior content strategist và copywriter tiếng Việt cho marketing.
+Luôn viết bằng tiếng Việt có dấu, tự nhiên, rõ ý, đúng chính tả.
+Không dùng tiếng Anh trừ tên brand/sản phẩm bắt buộc.
+Không bịa thông tin y khoa, giá, cam kết kết quả, địa chỉ, số điện thoại nếu brief không cung cấp.
+Đọc brand, plan marketing, guideline và ảnh tham khảo nếu có rồi viết nội dung thực dụng để đăng được ngay.`;
+
+    const textPrompt = `Loại content cần viết: ${typeLabel}
+
+[Brand]
+- Tên: ${brand.name || 'Chưa cung cấp'}
+- Màu chính: ${brand.primary_color || 'Chưa cung cấp'}
+- Màu phụ: ${brand.secondary_color || 'Chưa cung cấp'}
+- Nhận diện/giọng văn: ${brand.description || 'Chưa cung cấp'}
+- Logo: ${brand.logo_url ? 'Có logo brand' : 'Chưa có logo'}
+
+[Plan marketing]
+${params.marketingPlan || 'Chưa cung cấp'}
+
+[Guideline]
+${params.guideline || 'Chưa cung cấp'}
+
+[Nội dung người dùng cần viết]
+${params.brief}
+
+Yêu cầu output:
+- Viết đúng loại content đã chọn.
+- Có 3 phiên bản khác nhau để chọn.
+- Mỗi phiên bản có hook mở đầu mạnh, nội dung chính, CTA.
+- Nếu là video: viết theo format shot/cảnh, voice/onscreen text, CTA cuối.
+- Nếu có ảnh đính kèm: dựa vào nội dung ảnh để viết caption/hook phù hợp, không mô tả sai ảnh.
+- Chỉ trả nội dung cuối, không giải thích quá trình.`;
+
+    const userContent: any[] = [{ type: 'text', text: textPrompt }];
+    for (const url of (params.imageUrls || []).slice(0, 4)) {
+      userContent.push({ type: 'image_url', image_url: { url } });
+    }
+
+    const openai = await this.getClient();
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ] as any,
+      temperature: 0.75,
+      max_tokens: 1600,
+    });
+
+    const content = response.choices[0]?.message?.content?.trim();
+    if (!content) {
+      throw new Error('No content returned from OpenAI');
+    }
+    return content;
+  }
+
   /**
    * Chat completion using GPT model.
    * Used for chatbot training - takes system prompt (training data) and user message.

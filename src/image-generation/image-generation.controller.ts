@@ -101,4 +101,30 @@ export class ImageGenerationController {
     });
     return { storyboard };
   }
+
+  @Post('generate-content')
+  async generateContent(@Body() body: {
+    brand?: {
+      name?: string;
+      primary_color?: string;
+      secondary_color?: string;
+      description?: string;
+      logo_url?: string;
+    };
+    marketing_plan?: string;
+    guideline?: string;
+    brief: string;
+    content_type?: 'facebook_ad' | 'daily_post' | 'video_script';
+    image_urls?: string[];
+  }): Promise<{ content: string }> {
+    const content = await this.openaiService.generateMarketingContent({
+      brand: body.brand,
+      marketingPlan: body.marketing_plan,
+      guideline: body.guideline,
+      brief: body.brief,
+      contentType: body.content_type,
+      imageUrls: body.image_urls,
+    });
+    return { content };
+  }
 }
