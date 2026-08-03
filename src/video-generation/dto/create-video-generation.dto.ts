@@ -1,8 +1,12 @@
-import { IsString, IsOptional, IsArray, IsIn, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsIn, IsInt, Min, Max, IsUUID } from 'class-validator';
 
 export class CreateVideoGenerationDto {
   @IsString()
   prompt: string;
+
+  @IsOptional()
+  @IsUUID()
+  project_id?: string;
 
   @IsOptional()
   @IsString()

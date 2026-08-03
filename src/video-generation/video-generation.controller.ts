@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { VideoGenerationService } from './video-generation.service';
 import { CreateVideoGenerationDto } from './dto/create-video-generation.dto';
 
@@ -7,8 +7,8 @@ export class VideoGenerationController {
   constructor(private readonly videoGenerationService: VideoGenerationService) {}
 
   @Get()
-  findAll() {
-    return this.videoGenerationService.findAll();
+  findAll(@Query('project_id') projectId?: string) {
+    return this.videoGenerationService.findAll(projectId);
   }
 
   @Get(':id')

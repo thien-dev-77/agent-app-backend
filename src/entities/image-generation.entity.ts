@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Brand } from './brand.entity';
 import { Template } from './template.entity';
+import { Project } from './project.entity';
 
 export enum ImageGenerationStatus {
   PENDING = 'pending',
@@ -27,6 +28,9 @@ export class ImageGeneration {
 
   @Column({ type: 'uuid', nullable: true })
   template_id: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  project_id: string | null;
 
   @Column({ type: 'text' })
   prompt: string;
@@ -63,4 +67,8 @@ export class ImageGeneration {
   @ManyToOne(() => Template, (template) => template.image_generations, { nullable: true })
   @JoinColumn({ name: 'template_id' })
   template: Template | null;
+
+  @ManyToOne(() => Project, (project) => project.image_generations, { nullable: true })
+  @JoinColumn({ name: 'project_id' })
+  project: Project | null;
 }

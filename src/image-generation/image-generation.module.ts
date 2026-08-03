@@ -6,6 +6,7 @@ import { ImageGenerationService } from './image-generation.service';
 import { BrandsModule } from '../brands/brands.module';
 import { TemplatesModule } from '../templates/templates.module';
 import { OpenAIModule } from '../openai/openai.module';
+import { ProjectsModule } from '../projects/projects.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { OpenAIModule } from '../openai/openai.module';
     BrandsModule,
     TemplatesModule,
     OpenAIModule,
+    ProjectsModule,
   ],
   controllers: [ImageGenerationController],
   providers: [ImageGenerationService],

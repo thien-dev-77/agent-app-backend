@@ -144,6 +144,9 @@ export class OpenAIService {
 - Keep the person generally recognizable where allowed, but do not preserve sexualized wardrobe, pose, framing, expression, or mood.
 - No nudity, no erotic mood, no fetishized body focus, no provocative camera angle, and no intimate/bedroom context.
 - Prefer clean healthcare/commercial lighting, professional composition, and brand-safe dental marketing aesthetics.
+- All visible text in the final image must be Vietnamese with proper accents, natural wording, and correct spelling.
+- Do not use English words in headlines, CTAs, badges, offers, captions, footer, address/contact text, product/service labels, or any other text overlay unless the user explicitly asks to keep a registered brand name.
+- If the prompt or reference image contains English text, translate it into Vietnamese before placing it in the final image.
 ]`;
   }
 
@@ -184,7 +187,8 @@ Your analysis must produce a ready-to-use image generation prompt that:
 If separate input subject images are provided later, the generated poster must replace the reference subject/person/product with those input subject images while preserving the reference layout.
 The final output must not retain old promotion text, old prices, old phone numbers, old address, old CTA, old brand name, old logo text, or any original reference wording unless the user explicitly asks to keep it.
 
-Return ONLY the final image generation prompt (in English), no explanation, no JSON.
+Return ONLY the final image generation prompt in Vietnamese, no explanation, no JSON.
+All visible text in the final generated image must be Vietnamese with proper accents. Translate any English text from the reference or user brief into natural Vietnamese before placing it in the image.
 The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       },
     ];
@@ -305,6 +309,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
       roleLines.push('Remove watermarks, platform UI, unrelated logos, and old brand text from style references.');
       roleLines.push('If style/layout references contain an old main product, packshot, dental object, mockup, device, tray, teeth image, before/after image, or other product slot, replace that old product/object with the matching product/object from INPUT SUBJECT IMAGES. Keep the slot position, scale, perspective, lighting, and surrounding layout from the reference, but do not keep the old reference product.');
       roleLines.push('Replace EVERY visible text string from style/layout references with new text derived from the user prompt and current brand context. Preserve the visual text hierarchy and approximate block placement, but do not keep old headlines, offers, prices, CTAs, addresses, phone numbers, small captions, or footer text.');
+      roleLines.push('All replacement text visible in the final image must be Vietnamese with proper accents. Translate any English words from the prompt or reference into natural Vietnamese, except registered brand names.');
       roleLines.push('When the prompt provides a current brand palette, replace ALL non-photo design colors from style/layout references with the nearest brand colors: background, gradients, CTA blocks, badges, icons, borders, decorations, headline/subheadline/body text colors, large display typography/product-name colors, footer bars, and small UI accents. Do not preserve old gold/yellow/green/red/blue reference colors unless they are explicitly part of the current brand palette. Neutral white/black/gray and natural photo colors may remain only when needed for readability/realism.');
       if (options?.variationIndex) {
         roleLines.push(`This is variation ${options.variationIndex}. Make the composition clearly different from other variations by changing subject placement, typography arrangement, decorative elements, or crop while preserving the same brief and brand.`);
@@ -321,6 +326,7 @@ Remove watermarks, UI, and unrelated text from the reference images.`;
 Analyze all visible text zones and REMOVE any existing logos, watermarks, brand text, promotion text, prices, CTAs, address, phone number, and footer text found in the image.
 ${brandName ? `Replace with brand name "${brandName}" text${logoUrl ? ' and the new logo provided' : ''}.` : ''}
 Replace all other text with new content derived from the user's prompt while preserving text hierarchy, style, and approximate placement.
+All visible replacement text must be Vietnamese with proper accents. Translate English text into natural Vietnamese unless it is a registered brand name.
 Keep all other design elements, composition, and visual content unchanged.`;
     }
 

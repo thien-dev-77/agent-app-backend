@@ -5,6 +5,7 @@ import { Brand } from '../entities/brand.entity';
 import { Template } from '../entities/template.entity';
 import { ImageGeneration } from '../entities/image-generation.entity';
 import { VideoGeneration } from '../entities/video-generation.entity';
+import { Project } from '../entities/project.entity';
 import { TrainingCategory } from '../entities/training-category.entity';
 import { TrainingPhrase } from '../entities/training-phrase.entity';
 import { TrainingScenario } from '../entities/training-scenario.entity';
@@ -34,6 +35,7 @@ import { FacebookMessage } from '../entities/facebook-message.entity';
             Template,
             ImageGeneration,
             VideoGeneration,
+            Project,
             TrainingCategory,
             TrainingPhrase,
             TrainingScenario,

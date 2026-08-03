@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { VideoGeneration, VideoGenerationStatus } from '../entities/video-generation.entity';
 import { GeminiService } from '../gemini/gemini.service';
 import { CreateVideoGenerationDto } from './dto/create-video-generation.dto';
+import { ProjectsService } from '../projects/projects.service';
 
 @Injectable()
 export class VideoGenerationService {
@@ -13,16 +14,19 @@ export class VideoGenerationService {
     @InjectRepository(VideoGeneration)
     private readonly videoGenRepository: Repository<VideoGeneration>,
     private readonly geminiService: GeminiService,
+    private readonly projectsService: ProjectsService,
   ) {}
 
-  async findAll(): Promise<VideoGeneration[]> {
+  async findAll(projectId?: string): Promise<VideoGeneration[]> {
     return this.videoGenRepository.find({
+      where: projectId ? { project_id: projectId } : {},
+      relations: ['project'],
       order: { created_at: 'DESC' },
     });
   }
 
   async findOne(id: string): Promise<VideoGeneration> {
-    const videoGen = await this.videoGenRepository.findOne({ where: { id } });
+    const videoGen = await this.videoGenRepository.findOne({ where: { id }, relations: ['project'] });
     if (!videoGen) {
       throw new NotFoundException(`VideoGeneration with ID "${id}" not found`);
     }
@@ -30,8 +34,13 @@ export class VideoGenerationService {
   }
 
   async create(dto: CreateVideoGenerationDto): Promise<VideoGeneration> {
+    if (dto.project_id) {
+      await this.projectsService.findOne(dto.project_id);
+    }
+
     const videoGen = this.videoGenRepository.create({
       prompt: dto.prompt,
+      project_id: dto.project_id || null,
       input_image_url: dto.input_image_url || null,
       status: VideoGenerationStatus.PENDING,
       duration: dto.duration_seconds || null,

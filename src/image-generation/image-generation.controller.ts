@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import { ImageGenerationService } from './image-generation.service';
 import { CreateImageGenerationDto } from './dto';
@@ -19,8 +20,8 @@ export class ImageGenerationController {
   ) {}
 
   @Get()
-  findAll(): Promise<ImageGeneration[]> {
-    return this.imageGenerationService.findAll();
+  findAll(@Query('project_id') projectId?: string): Promise<ImageGeneration[]> {
+    return this.imageGenerationService.findAll(projectId);
   }
 
   @Get(':id')

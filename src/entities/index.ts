@@ -2,6 +2,7 @@ export { Brand } from './brand.entity';
 export { Template } from './template.entity';
 export { ImageGeneration, ImageGenerationStatus } from './image-generation.entity';
 export { VideoGeneration, VideoGenerationStatus } from './video-generation.entity';
+export { Project } from './project.entity';
 export { TrainingCategory } from './training-category.entity';
 export { TrainingPhrase } from './training-phrase.entity';
 export { TrainingScenario } from './training-scenario.entity';

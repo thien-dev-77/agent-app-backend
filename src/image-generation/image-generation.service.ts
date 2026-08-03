@@ -7,6 +7,7 @@ import { TemplatesService } from '../templates/templates.service';
 import { OpenAIService } from '../openai/openai.service';
 import { CreateImageGenerationDto } from './dto';
 import { Template } from '../entities/template.entity';
+import { ProjectsService } from '../projects/projects.service';
 
 @Injectable()
 export class ImageGenerationService {
@@ -18,11 +19,13 @@ export class ImageGenerationService {
     private readonly brandsService: BrandsService,
     private readonly templatesService: TemplatesService,
     private readonly openaiService: OpenAIService,
+    private readonly projectsService: ProjectsService,
   ) {}
 
-  async findAll(): Promise<ImageGeneration[]> {
+  async findAll(projectId?: string): Promise<ImageGeneration[]> {
     return this.imageGenRepository.find({
-      relations: ['brand', 'template'],
+      where: projectId ? { project_id: projectId } : {},
+      relations: ['brand', 'template', 'project'],
       order: { created_at: 'DESC' },
     });
   }
@@ -30,7 +33,7 @@ export class ImageGenerationService {
   async findOne(id: string): Promise<ImageGeneration> {
     const imageGen = await this.imageGenRepository.findOne({
       where: { id },
-      relations: ['brand', 'template'],
+      relations: ['brand', 'template', 'project'],
     });
     if (!imageGen) {
       throw new NotFoundException(`ImageGeneration with ID "${id}" not found`);
@@ -53,6 +56,10 @@ export class ImageGenerationService {
     let template: Template | null = null;
     if (dto.template_id) {
       template = await this.templatesService.findOne(dto.template_id);
+    }
+
+    if (dto.project_id) {
+      await this.projectsService.findOne(dto.project_id);
     }
 
     // Build prompt
@@ -93,6 +100,7 @@ export class ImageGenerationService {
     const imageGen = this.imageGenRepository.create({
       brand_id: dto.brand_id || null,
       template_id: dto.template_id || null,
+      project_id: dto.project_id || null,
       prompt,
       status: ImageGenerationStatus.PROCESSING,
       reference_images: allReferences.length > 0 ? allReferences : null,

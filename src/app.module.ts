@@ -13,6 +13,7 @@ import { CrmModule } from './crm/crm.module';
 import { GalleryModule } from './gallery/gallery.module';
 import { ReferenceImagesModule } from './reference-images/reference-images.module';
 import { SettingsModule } from './settings/settings.module';
+import { ProjectsModule } from './projects/projects.module';
 import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './auth/auth.guard';
@@ -36,6 +37,7 @@ import { AuthGuard } from './auth/auth.guard';
     GalleryModule,
     ReferenceImagesModule,
     SettingsModule,
+    ProjectsModule,
     AuthModule,
   ],
   providers: [

@@ -9,6 +9,10 @@ export class CreateImageGenerationDto {
   @IsUUID()
   template_id?: string;
 
+  @IsOptional()
+  @IsUUID()
+  project_id?: string;
+
   @IsString()
   user_input: string;
 

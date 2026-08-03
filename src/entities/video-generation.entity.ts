@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Project } from './project.entity';
 
 export enum VideoGenerationStatus {
   PENDING = 'pending',
@@ -20,6 +23,9 @@ export class VideoGeneration {
 
   @Column('text')
   prompt: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  project_id: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   input_image_url: string | null;
@@ -48,4 +54,8 @@ export class VideoGeneration {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @ManyToOne(() => Project, (project) => project.video_generations, { nullable: true })
+  @JoinColumn({ name: 'project_id' })
+  project: Project | null;
 }
