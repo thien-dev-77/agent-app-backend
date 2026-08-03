@@ -43,7 +43,7 @@ export class ProjectsService {
 
   async update(id: string, dto: UpdateProjectDto): Promise<Project> {
     const project = await this.findOne(id);
-    if (project.brand_id && dto.brand_id && project.brand_id !== dto.brand_id) {
+    if (project.brand_id && dto.brand_id !== undefined && project.brand_id !== dto.brand_id) {
       throw new BadRequestException('Project already belongs to another brand');
     }
     const nextProject = this.projectRepository.merge(project, dto);
