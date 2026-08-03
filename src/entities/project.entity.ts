@@ -5,7 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Brand } from './brand.entity';
 import { ImageGeneration } from './image-generation.entity';
 import { VideoGeneration } from './video-generation.entity';
 
@@ -20,6 +23,9 @@ export class Project {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  brand_id: string | null;
+
   @Column({ type: 'jsonb', nullable: true })
   workflow: Record<string, any> | null;
 
@@ -31,6 +37,10 @@ export class Project {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @ManyToOne(() => Brand, { nullable: true })
+  @JoinColumn({ name: 'brand_id' })
+  brand: Brand | null;
 
   @OneToMany(() => ImageGeneration, (imageGeneration) => imageGeneration.project)
   image_generations: ImageGeneration[];

@@ -11,9 +11,13 @@ export class ProjectsService {
     private readonly projectRepository: Repository<Project>,
   ) {}
 
-  findAll(): Promise<Project[]> {
+  findAll(brandId?: string): Promise<Project[]> {
     return this.projectRepository.find({
-      where: { is_active: true },
+      where: {
+        is_active: true,
+        ...(brandId ? { brand_id: brandId } : {}),
+      },
+      relations: ['brand'],
       order: { updated_at: 'DESC' },
     });
   }
@@ -30,6 +34,7 @@ export class ProjectsService {
     const project = this.projectRepository.create({
       name: dto.name,
       description: dto.description || null,
+      brand_id: dto.brand_id || null,
       workflow: dto.workflow || null,
       is_active: true,
     });

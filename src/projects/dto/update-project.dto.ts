@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class UpdateProjectDto {
   @IsOptional()
@@ -8,6 +8,10 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsString()
   description?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  brand_id?: string | null;
 
   @IsOptional()
   workflow?: Record<string, any> | null;
