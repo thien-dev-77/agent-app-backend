@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ImageGeneration, ImageGenerationStatus } from '../entities/image-generation.entity';
@@ -58,8 +58,12 @@ export class ImageGenerationService {
       template = await this.templatesService.findOne(dto.template_id);
     }
 
+    let project: any = null;
     if (dto.project_id) {
-      await this.projectsService.findOne(dto.project_id);
+      project = await this.projectsService.findOne(dto.project_id);
+      if (project.brand_id && dto.brand_id && project.brand_id !== dto.brand_id) {
+        throw new BadRequestException('Project brand does not match the selected brand');
+      }
     }
 
     // Build prompt

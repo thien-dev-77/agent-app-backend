@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project } from '../entities/project.entity';
@@ -43,6 +43,9 @@ export class ProjectsService {
 
   async update(id: string, dto: UpdateProjectDto): Promise<Project> {
     const project = await this.findOne(id);
+    if (project.brand_id && dto.brand_id && project.brand_id !== dto.brand_id) {
+      throw new BadRequestException('Project already belongs to another brand');
+    }
     const nextProject = this.projectRepository.merge(project, dto);
     return this.projectRepository.save(nextProject);
   }
