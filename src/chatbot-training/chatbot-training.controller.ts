@@ -158,6 +158,20 @@ export class ChatbotTrainingController {
     return this.service.syncConnectedFacebookProfile(botId);
   }
 
+  @Get('facebook/connected-pages')
+  getConnectedFacebookPages() {
+    return this.service.getConnectedFacebookPages();
+  }
+
+  @Post('facebook/publish-post')
+  publishFacebookPost(@Body() body: {
+    page_id: string;
+    message: string;
+    image_url?: string;
+  }) {
+    return this.service.publishFacebookPost(body);
+  }
+
   // ==================== UPLOAD KNOWLEDGE ====================
 
   @Post('knowledge/upload')

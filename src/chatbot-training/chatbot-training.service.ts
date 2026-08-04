@@ -373,6 +373,82 @@ export class ChatbotTrainingService implements OnModuleInit, OnModuleDestroy {
     return { status: 'ok' };
   }
 
+  async getConnectedFacebookPages() {
+    const bots = await this.chatbotRepo.find({ order: { created_at: 'DESC' } });
+    const pages = bots
+      .map((bot) => {
+        const facebook = bot.settings?.facebook;
+        if (!facebook?.page_id || !facebook?.page_access_token || facebook.status !== 'connected') {
+          return null;
+        }
+        return {
+          bot_id: bot.id,
+          bot_name: bot.name,
+          page_id: facebook.page_id,
+          page_name: facebook.page_name || facebook.page_id,
+          connected_at: facebook.connected_at || null,
+        };
+      })
+      .filter(Boolean);
+
+    return { pages };
+  }
+
+  async publishFacebookPost(body: {
+    page_id: string;
+    message: string;
+    image_url?: string;
+  }) {
+    const pageId = (body.page_id || '').trim();
+    const message = (body.message || '').trim();
+    const imageUrl = (body.image_url || '').trim();
+
+    if (!pageId) {
+      throw new BadRequestException('page_id is required');
+    }
+    if (!message) {
+      throw new BadRequestException('message is required');
+    }
+
+    const bot = await this.chatbotRepo
+      .createQueryBuilder('chatbot')
+      .where("chatbot.settings->'facebook'->>'page_id' = :pageId", { pageId })
+      .getOne();
+    const facebook = bot?.settings?.facebook;
+    if (!facebook?.page_access_token) {
+      throw new BadRequestException('Fanpage chưa được kết nối hoặc thiếu page access token');
+    }
+
+    const graphVersion = this.getFacebookGraphVersion();
+    const endpoint = imageUrl
+      ? `https://graph.facebook.com/${graphVersion}/${pageId}/photos`
+      : `https://graph.facebook.com/${graphVersion}/${pageId}/feed`;
+    const params = imageUrl
+      ? {
+          url: imageUrl,
+          caption: message,
+          published: true,
+          access_token: facebook.page_access_token,
+        }
+      : {
+          message,
+          access_token: facebook.page_access_token,
+        };
+
+    const response = await axios.post(endpoint, null, {
+      params,
+      timeout: 30000,
+    });
+
+    return {
+      status: 'published',
+      page_id: pageId,
+      page_name: facebook.page_name || pageId,
+      post_id: response.data?.post_id || response.data?.id,
+      photo_id: imageUrl ? response.data?.id : undefined,
+    };
+  }
+
   private async sendFacebookMessage(
     pageAccessToken: string,
     recipientId: string,
