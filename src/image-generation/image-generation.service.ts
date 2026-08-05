@@ -131,6 +131,7 @@ export class ImageGenerationService {
         {
           inputImageCount: inputImages.length,
           styleReferenceImageCount: styleReferenceImages.length,
+          editMode: dto.mode === 'edit',
           variationIndex: dto.variation_index,
         },
       );

@@ -90,6 +90,7 @@ export class OpenAIService {
     options?: {
       inputImageCount?: number;
       styleReferenceImageCount?: number;
+      editMode?: boolean;
       variationIndex?: number;
     },
   ): Promise<string> {
@@ -232,6 +233,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
     options?: {
       inputImageCount?: number;
       styleReferenceImageCount?: number;
+      editMode?: boolean;
       variationIndex?: number;
     },
   ): Promise<string> {
@@ -246,7 +248,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
 
     let finalPrompt = prompt;
 
-    if (styleRefs.length > 0 && brandName) {
+    if (!options?.editMode && styleRefs.length > 0 && brandName) {
       const analysisPrompt = await this.analyzeReferenceForBrandSwap(
         styleRefs,
         brandName,
@@ -290,7 +292,14 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
 
     // ── STEP 2: Build image role instructions ──
     let imageInstruction: string;
-    if (inputImages.length > 0 || styleRefs.length > 0) {
+    if (options?.editMode) {
+      imageInstruction = `The provided image(s) are the SOURCE IMAGE(S) to edit, not style-only references.
+Apply only the user's requested changes from the prompt.
+Preserve the original layout, composition, crop, perspective, lighting, colors, subject identity, product details, typography, logos, and all visible text exactly as much as possible.
+Do not rewrite, translate, remove, or replace existing text unless the user explicitly asks to edit that specific text.
+Do not redesign the poster, do not create a new concept, and do not use the reference only as inspiration.
+If multiple images are provided, use Image[0] as the primary image to edit and the remaining images only as visual references for the requested local change.`;
+    } else if (inputImages.length > 0 || styleRefs.length > 0) {
       const roleLines: string[] = [];
       if (logoUrl) {
         roleLines.push(`Image[0] is the NEW BRAND LOGO for "${brandName || 'the brand'}". Use it for brand identity and replace old logos/brand marks from style references.`);
@@ -330,7 +339,10 @@ All visible replacement text must be Vietnamese with proper accents. Translate E
 Keep all other design elements, composition, and visual content unchanged.`;
     }
 
-    const fullPrompt = this.appendImageSafetyGuard(`${finalPrompt}\n\n[Image roles:\n${imageInstruction}]`);
+    const promptWithRoles = `${finalPrompt}\n\n[Image roles:\n${imageInstruction}]`;
+    const fullPrompt = options?.editMode
+      ? this.appendEditSafetyGuard(promptWithRoles)
+      : this.appendImageSafetyGuard(promptWithRoles);
 
     const openai = await this.getClient();
     const response = await openai.images.edit({
@@ -346,6 +358,17 @@ Keep all other design elements, composition, and visual content unchanged.`;
       throw new Error('No image data returned from OpenAI edit');
     }
     return b64Data;
+  }
+
+  private appendEditSafetyGuard(prompt: string): string {
+    return `${prompt}
+
+[Safety and edit preservation requirements:
+- The final output must be polished, professional, family-safe, non-sexual, non-erotic, and non-suggestive.
+- Preserve existing visible text, logos, brand names, layout, and typography unless the user's prompt explicitly asks to change them.
+- Do not translate, rewrite, remove, or invent text during an edit unless requested.
+- Keep the edit localized to the user's instruction and avoid rebuilding the full image from scratch.
+]`;
   }
 
   /**

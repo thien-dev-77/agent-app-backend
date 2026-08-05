@@ -40,6 +40,10 @@ export class CreateImageGenerationDto {
   quality?: string;
 
   @IsOptional()
+  @IsString()
+  mode?: 'generate' | 'edit';
+
+  @IsOptional()
   variation_index?: number;
 
   @IsOptional()
