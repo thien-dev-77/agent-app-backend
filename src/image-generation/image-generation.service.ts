@@ -95,7 +95,7 @@ export class ImageGenerationService {
       ...inputImages,
       ...styleReferenceImages.filter((url) => !inputImages.includes(url)),
     ];
-    if (brand?.logo_url) {
+    if (brand?.logo_url && dto.mode !== 'edit') {
       // Logo đặt đầu để AI biết đây là brand mới cần inject
       allReferences.unshift(brand.logo_url);
     }
