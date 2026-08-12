@@ -138,6 +138,7 @@ export class OpenAIService {
     return `${prompt}
 
 [Safety and professional advertising requirements:
+- Follow the user's explicit creative/request details as the highest priority, as long as they do not conflict with these safety requirements.
 - The final output must always be a polished, professional, family-safe advertisement.
 - The final output must be non-sexual, non-erotic, and non-suggestive.
 - If any input person appears in revealing clothing, sleepwear, lingerie-like clothing, swimwear, bedroom/mirror-selfie styling, intimate framing, cleavage-emphasis, body-emphasis, or a seductive pose, adapt the person into modest professional advertising styling.
@@ -148,6 +149,19 @@ export class OpenAIService {
 - All visible text in the final image must be Vietnamese with proper accents, natural wording, and correct spelling.
 - Do not use English words in headlines, CTAs, badges, offers, captions, footer, address/contact text, product/service labels, or any other text overlay unless the user explicitly asks to keep a registered brand name.
 - If the prompt or reference image contains English text, translate it into Vietnamese before placing it in the final image.
+]`;
+  }
+
+  private buildUserPriorityPrompt(userPrompt: string, supportingPrompt?: string): string {
+    return `[Highest priority user request:
+${userPrompt}
+
+The final image must satisfy every concrete user requirement above first. Use reference analysis, brand context, layout rules, and automatic instructions only as support. If there is a conflict, the user's explicit request wins unless it conflicts with safety requirements.
+]
+
+${supportingPrompt ? `[Supporting reference/brand analysis:\n${supportingPrompt}]\n\n` : ''}[Final reminder:
+Before generating, verify that no user-requested detail, text, product, offer, color, layout change, or action was omitted.
+${userPrompt}
 ]`;
   }
 
@@ -255,8 +269,7 @@ The prompt must be detailed, specific, and actionable for GPT-Image-2.`,
         logoImageUrl,
       );
       if (analysisPrompt) {
-        // Dùng analysis prompt làm base, append user intent
-        finalPrompt = `${analysisPrompt}\n\nAdditional instruction from user: ${prompt}`;
+        finalPrompt = this.buildUserPriorityPrompt(prompt, analysisPrompt);
         this.logger.log('[BrandSwap] Using analysis-based prompt');
       }
     }
@@ -320,6 +333,7 @@ If multiple images are provided, use Image[0] as the primary image to edit and t
       roleLines.push('Replace EVERY visible text string from style/layout references with new text derived from the user prompt and current brand context. Preserve the visual text hierarchy and approximate block placement, but do not keep old headlines, offers, prices, CTAs, addresses, phone numbers, small captions, or footer text.');
       roleLines.push('All replacement text visible in the final image must be Vietnamese with proper accents. Translate any English words from the prompt or reference into natural Vietnamese, except registered brand names.');
       roleLines.push('When the prompt provides a current brand palette, replace ALL non-photo design colors from style/layout references with the nearest brand colors: background, gradients, CTA blocks, badges, icons, borders, decorations, headline/subheadline/body text colors, large display typography/product-name colors, footer bars, and small UI accents. Do not preserve old gold/yellow/green/red/blue reference colors unless they are explicitly part of the current brand palette. Neutral white/black/gray and natural photo colors may remain only when needed for readability/realism.');
+      roleLines.push('Highest priority: do not omit or dilute any explicit user request from the prompt. Reference/layout rules are secondary to the user brief.');
       if (options?.variationIndex) {
         roleLines.push(`This is variation ${options.variationIndex}. Make the composition clearly different from other variations by changing subject placement, typography arrangement, decorative elements, or crop while preserving the same brief and brand.`);
       }
